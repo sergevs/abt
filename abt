@@ -1,0 +1,140 @@
+#!/bin/zsh 
+
+set -o kshglob
+set -o shwordsplit
+set -o errexit
+set -o dotglob
+
+[[ -f /etc/abt/abtrc ]] && . /etc/abt/abtrc
+[[ -f ~/.abtrc ]] && . ~/.abtrc
+
+abtPath=${0%/*}
+
+if [[ -f "$functionsFile" ]] then
+	. "$functionsFile"
+else
+	. "$abtPath/abt.functions"
+fi
+
+if [[ $? -ne 0 ]] then
+	print "ERR - error while sourcing functions" >&2
+	exit 1
+fi
+
+function printUsage {
+  cat <<EOF
+Usage: abt -v <version> [OPTIONS] <svn module path>
+
+Options:
+           [-a <release> ]
+           [-b <trunk|branch|tag> ] 
+           [-c <abt filename> ] 
+           [-d <debug level> ]
+           [-e <changelog entry> ]
+           [-h ]
+           [-l <enable logging> ]
+           [-n <svn revision> ]
+           [-o <build from spec file> ]
+           [-m 0|1|<mock config> ]  0 - don't use mock, 1 - use mock, <mock config> - config file without arch and cfg extention
+           [-p <rpmbuild  options> ]
+           [-r <repository> ]
+           [-s <skip stages> ] 
+           [-t <config type> ]
+           [-u <svn base URL> ]
+           [-v <version>]
+           [-A "module alias"]
+           [-D "rpm macros"]
+           [-C <additional configuration file> (overrides /etc/abt/abtrc and ~/.abtrc)
+
+Default stages are:
+EOF
+  for ((_i=1;_i<=$maxStages;_i+=1))
+  do
+    [[ -n "${stage[$_i]}" && "${stage[$_i]}" != 'none' ]] && printf "Stage %3d => %s\n" $_i ${stage[$_i]}
+  done
+  exit 1
+}
+
+while getopts "a:b:c:d:e:hln:o:m:r:s:t:u:v:A:D:C:" opt; do
+	case $opt in 
+		a) rpmRel="$OPTARG" ;;
+		b) vcsRel="$OPTARG" ;;
+		c) abtFile="$OPTARG" ;;
+		d) isDebug="$OPTARG" ;;
+		e) changeLog[1]="- $OPTARG" ;;
+		h) printUsage;;
+		l) isLog=1;;
+		n) svnProjectRev="$OPTARG";;
+		o) specFile="$OPTARG" ;;
+		r) repo="$OPTARG";;
+		s) skipStages="$OPTARG" ;;
+		t) configType="$OPTARG";;
+		v) modBuild="$OPTARG" ;;
+		u) svnBase="$OPTARG" ;;
+		A) moduleSetAlias $OPTARG ;;
+		D) rpmSetOptMacros $OPTARG ;;
+		C) addConfigFile="$OPTARG" ;;
+    m) case $OPTARG in
+        0) rpmBuildMethod='rpmbuild';;
+        1) rpmBuildMethod='mock';;
+        *) optMockConfigFile="$OPTARG"
+           rpmBuildMethod='mock'
+        ;;
+       esac
+        ;;
+        *) printUsage;;
+	esac
+done
+
+if [[ -n "$addConfigFile" ]]; then
+  if [[ -r "$addConfigFile" ]]; then
+    . $addConfigFile 
+  else 
+    printERR "Additional config file <$addConfigFile> specified but not readable"
+  fi
+fi
+
+shift $(($OPTIND - 1))
+
+vcsModule=$1
+
+# vcs Module verification
+[[ -z "$vcsModule" ]] && printERR "svn module is undefined, for usage see abt -h"
+
+# version verification
+[[ -z "$modBuild" ]] && printERR "-v <product version> is mandatory"
+[[ -n "${modBuild##+([0-9]).+([0-9]).+([0-9]).+([0-9])}" ]] && printERR "Wrong version $modBuild, have to be in x.x.x.x form"
+modVer=${modBuild%[.-]+([0-9])}
+
+# debug level verification
+[[ -n "${isDebug##+([0-9])}" ]] && printERR "debug level have to be a number"
+
+# parse skipStages option and undefine stages
+if [[ -n "$skipStages" ]] then
+	for _skip in ${(z)skipStages}
+	do
+		if [[ $_skip = *-* ]] then
+			_skip_start=${_skip%%-+([0-9])}
+			_skip_end=${_skip##+([0-9])-}
+
+			for (( _si=$_skip_start; _si<=$_skip_end; _si+=1 )) 
+			do
+				stage[$_si]='none'
+			done
+		else
+			stage[$_skip]='none'
+		fi
+	done
+fi
+
+# main loop
+# using with check because get values of array will not work 
+# after an element redefinition in the loop that in the turn does not allow
+# add a function in the middle of steps
+for ((stgNum=1;stgNum<=$maxStages;stgNum+=1))
+do
+	[[ -n "${stage[$stgNum]}" ]] && [[ "${stage[$stgNum]}" != 'none' ]] && ${stage[$stgNum]}
+done
+
+#it's required to explicity define success return value
+exit 0

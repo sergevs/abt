@@ -1,0 +1,4 @@
+pkgName='abt'
+specFile='RPM/SPECS/abt.spec'
+vcsModules[$vcsModule]=$modBuild
+distCheckout='True'

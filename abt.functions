@@ -1,0 +1,695 @@
+# 
+# important notice to script hackers
+# pay attention to 'magic' word in the script comments
+# 
+
+#global variables 
+typeset -A svnDirs
+svnDirs[trunk]='trunk'
+svnDirs[branch]='branches'
+svnDirs[tag]='tags'
+svnDirs[local]='local'
+svnDirs[custom]='-'
+rpmBuildMethod=${rpmBuildMethod-'rpmbuild'}
+mockConfigDir=${mockConfigDir-'/etc/abt/mock'}
+mockConfigFile=''
+optMockConfigFile=''
+
+if [[ ! -d $workDir || $workDir == '' ]] then
+	print -- "ERR - workdir $workDir does not set or not exists" >&2
+	exit 1
+  else
+    workDir="$workDir:h/$workDir:t/"
+    pushd $workDir
+fi
+
+targetDir=''
+mockDir=''
+mockRoot=''
+abtFile='abt'
+specDir='RPM/SPECS'
+
+typeset -A vcsModules
+typeset -A vcsSubModules
+typeset -A rpmRequires
+typeset -a packageList
+packageList[1]='reserved for src rpm'
+typeset -a changeLog
+changeLog[1]='reserved for entry stamp'
+typeset -A vcsModuleAlias
+
+#added to perform multibuild of the same rpm spec with different features
+typeset -a rpmMacros
+
+#2 variables below are defined in rpmInitEnv
+rpmSpecDir=''
+rpmSrcDir=''
+
+modVer=''
+modBuild=''
+rpmRel=''
+specFile=''
+isDebug=1
+isLog=0
+
+mockDebugOpt=''
+#default log file
+logFile="${workDir}abt-`date +%d-%b-%H:%M:%S`.log"
+[ -f $logFile ] && rm -rf $logFile
+
+canContinue='no'
+
+TRAPINT() {
+  print "INTERRUPTED."
+  rm -f /tmp/abt.$$.lock
+  return $(( 128 + $1 ))
+}
+
+TRAPEXIT() {
+#  print "FINISHED."
+  rm -f /tmp/abt.$$.lock
+}
+
+TRAPZERR() {
+	if [[ $canContinue == 'yes' ]] then return 0; fi
+		
+	print "ERROR TRAPPED. see $logFile for detailed description" >&2
+  rm -f /tmp/abt.$$.lock
+  sleep 1
+	kill $$
+}
+
+function printERR {
+	local _msg
+	_msg=$1
+
+	print "ERR - $_msg" >&2
+	if [[ -n "$isLog" && -n "$logFile" && -w "$logFile" ]] then print "ERR - $_msg" >> $logFile; fi
+	exit 1
+}
+
+function printDBG {
+	local _msg _lvl
+	_msg=$1
+	_lvl=$2
+
+# have to not use && here to not confuse pipes
+	if [[ -n "$isLog" && -n "$logFile" ]] then print -- "${_msg#CMDOUT }" >> $logFile; fi
+	if [[ -z "$_lvl" ]] then _lvl=1; fi
+  
+  _msgPrefix='INFO'
+  [[ $_lvl -gt 1 ]] && _msgPrefix='DBG'
+	if [[ -n "$isDebug" ]] then 
+		if [[ $isDebug -ge $_lvl ]] then print -- "$_msgPrefix - $_msg" >&2; fi
+	fi
+}
+
+function svnInitEnv {
+	printDBG "invoking ${0}[$stgNum]"
+
+	local _i 
+# checking if an abt script is exists and  source it
+	if [[ -z "$vcsRel" ]] then 
+		vcsRel='tag'
+	else 
+		for _i in ${(k)svnDirs}
+		do
+			[[ "$_i" == $vcsRel ]] && _valid=1
+		done
+		[[ -z "$_valid" ]] && printERR "$vcsRel is not valid for branch definition"
+	fi
+
+	svnList "" "$specDir/$abtFile" "1"
+	if [[ $? -eq 0 ]] then
+		_tmp_abt_file=`echo "$abtFile.$vcsRel.$modBuild" | sed -e 's#/#_#g'`
+		svnCat "" "$specDir/$abtFile" "" "1" > ${workDir}$_tmp_abt_file
+		source "${workDir}$_tmp_abt_file" || printERR "error while sourcing ${workDir}$_tmp_abt_file"
+		execCmd "rm ${workDir}$_tmp_abt_file"
+	fi
+	if [[ -z "$specFile" || -z "$pkgName" ]] then
+		printERR "specFile $specFile or pkgName $pkgName is not defined"
+	fi
+}
+
+function checkEnvironment {
+  printDBG "invoking $0" 2
+  [[ `rpm -E %packager` == '%packager' ]] && printERR "please define %packager at $HOME/.rpmmacros"
+  execCmd "mkdir -vp  `rpm -E '%_tmppath %_rpmdir %_builddir %_sourcedir %_specdir %_srcrpmdir'`"
+  if [[ "$rpmBuildMethod" == 'mock' ]] then
+    _mockBin=`execCmd "which mock" 'yes' '1'`;
+    [[ -x "$_mockBin"  ]] || printERR "mock not found"
+    [[ `id | grep  -o '\((mock)\)'` != '(mock)' ]] && printERR "in the order to use mock, you have to be a member of mock group"
+    _mockVersion=`execCmd "$_mockBin --version" '' '1'`
+    [[ -n "${_mockVersion##1.0*}" ]] && printERR "only mock 1.0.x is supported, you have $_mockVersion"
+    [[ `df|awk '/\/dev\/shm/{printf "%.0f\n", $4/1024/1024}'` -lt 1 ]] && printERR "/dev/shm have less than 1Gb, please clean and run again"
+  fi
+}
+
+function setMockConfigFile {
+  printDBG "invoking ${0}" 2
+  local _arch
+  _arch=$1
+  if [[ -n "$optMockConfigFile" ]] then
+    mockConfigFile="${optMockConfigFile}-$_arch"
+    printDBG "set mock config file to $mockConfigFile" 2
+  else
+    if [[ -f "$mockConfigDir/${${modBuild%.*}%.*}-$_arch.cfg" ]] then
+      mockConfigFile="${${modBuild%.*}%.*}-$_arch"
+      printDBG "set mock config file to $mockConfigFile" 2
+    else
+      mockConfigFile="default-$_arch" 
+      printDBG "$mockConfigDir/${${modBuild%.*}%.*}-$_arch.cfg not found, trying to use $mockConfigFile" 2
+    fi
+  fi
+  [[ -f "$mockConfigDir/$mockConfigFile.cfg" ]] || printERR "$mockConfigDir/$mockConfigFile.cfg not found"
+}
+
+function rpmInitEnv {
+  printDBG "invoking ${0}[$stgNum], initializing ${rpmBuildMethod:-rpmbuild}"
+
+  checkEnvironment
+
+	rpmSpecDir=`rpm -E %_specdir`
+	rpmSrcDir=`rpm -E %_sourcedir`
+  case $isDebug in
+    '1')
+        mockDebugOpt='-q' ;;
+    '2')
+        mockDebugOpt='' ;;
+    '3')
+        mockDebugOpt='-v' ;;
+    *) 
+        mockDebugOpt='-v' ;;
+  esac
+	
+  if [[ "$rpmBuildMethod" == 'mock' ]] then
+      setMockConfigFile `arch`
+      mockRoot=`execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' --print-root" '' '1'`
+      mockDir="${workDir}mock/${${mockRoot##*mock/}%*/root/}"
+      set -o nullglob
+      if [[ -n `print /tmp/abt.*.lock | grep -v '^$'` ]] then
+        _locked=`execCmd "grep -H '$mockRoot' /tmp/abt.*.lock" 'yes' '1'`
+        [[ -n "$_locked" ]] && printERR "looks like there is already an abt process which use $mockRoot. if not, please remove $_locked"
+      fi
+      print $mockRoot > /tmp/abt.$$.lock
+      set +o nullglob
+      [[ -d $mockDir ]] &&  execCmd "rm -rf $mockDir"
+      execCmd "mkdir -p $mockDir/results"
+      execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' --scrub=chroot"
+      execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' --init 2>&1"
+  fi
+  
+  targetDir="$workDir$pkgName-${modBuild:-targetDir}"
+  [[ -d $targetDir ]] && rm -rf $targetDir
+	# magic '/' in specFile definition
+	# if specFile contain a '/' it's assumed to found in relative path of targetDir root
+	if [[ ${specFile##*/} != $specFile ]] then
+		specFile="$targetDir/$specFile"
+	else
+		specFile="$targetDir/`basename $vcsModule`/$specDir/$specFile"
+	fi
+}
+
+function execCmd {
+	local _cmd _nonFail _reqOut _host _r _ifs
+	_cmd=$1				# command
+	_nonFail=$2		# if 'yes', the failed status of executed program considered as expected behavour
+	_reqOut=$3		# if non zero, program have to return its out
+	_host=$4			# if non zero, program executed on remote host
+  _r=''
+	
+	[[ -n "$_host" && "$_host" != 'local' ]] && _cmd="ssh $_host $_cmd"
+	printDBG "invoking execCmd $_cmd _nonFail=$_nonFail _reqOut=$_reqOut _host=$_host" 2
+	canContinue=$_nonFail
+
+	eval "$_cmd" | { 
+    _ifs=$IFS
+    IFS=`print "\n"`
+		while read -r _l ; do 
+			printDBG "CMDOUT $_l" 3
+			if [[ -n "$_reqOut" ]] then print -r "$_l"; fi
+		done 
+		IFS=$_ifs
+	}
+	canContinue=no
+}
+
+function copyCmd {
+	local _src _dst _host
+	_src=$1
+	_dst=$2
+	_host=$3
+
+	if [[ -z "$_host" || "$_host" == 'local' ]] then
+		execCmd "cp $_src $_dst" 
+	else
+		execCmd "scp $_src $_host:$_dst" 
+	fi
+}
+
+function moduleSetAlias {
+	printDBG "invoking $0 $1 $2" 2
+
+	vcsModuleAlias[$1]="$2"
+}
+
+function rpmSetOptMacros {
+	printDBG "invoking $0 $1 $2" 2
+
+	rpmOptMacros="$rpmOptMacros --define='$1 $2' "
+}
+
+function moduleGetAlias {
+	printDBG "invoking $0 $1" 2
+
+	if [[ -n "${vcsModuleAlias[$1]}" ]] then
+		print ${vcsModuleAlias[$1]}
+	else
+		if [[ -n "$2" ]] then
+			print $1;
+		else
+			printERR "Alias not specified for $1"
+		fi
+	fi
+}
+
+function svnGetRev {
+	local _ver
+	_ver=$1
+
+	[[ -z "$_ver" ]] && _ver="$modBuild"
+	case $vcsRel in
+		'trunk') 
+				print ${svnDirs[$vcsRel]}/ ;;
+		'branch')
+				print ${svnDirs[$vcsRel]}/${_ver%[.-]+([0-9])}/ ;;
+		'tag')
+				print ${svnDirs[$vcsRel]}/$_ver/ ;;
+		'local')
+				print "local" ;;
+		'custom')
+				print "" ;;
+		*)
+				printERR "Unknown vcsRel $vcsRel" ;;
+	esac
+}
+
+function svnList {
+	local _module _path _svnRev
+	_module=$1
+	_path=$2
+ 
+	_svnRev=`svnGetRev`
+
+	if [[ -z "$_module" ]] then _module="$vcsModule"; fi
+
+	[[ -n "$svnProjectRev" ]] && _svnRevOpt="-r $svnProjectRev"
+
+	_module=`moduleGetAlias $_module $_svnRev`
+	if [[ "$_svnRev" = "local" ]] then
+		execCmd "ls $_module/$_path"
+	else
+		execCmd "svn list $_svnRevOpt $svnBase$_module/$_svnRev$_path"
+	fi
+}
+
+function svnCat {
+	local _module _path _nonFail _reqOut _svnRev
+	_module=$1
+	_path=$2
+  _nonFail=$3
+	_reqOut=$4
+
+	if [[ -z "$_module" ]] then _module="$vcsModule"; fi
+
+	_svnRev=`svnGetRev ${vcsModules[$_module]}`
+
+	[[ -n "$svnProjectRev" ]] && _svnRevOpt="-r $svnProjectRev"
+
+	_module=`moduleGetAlias $_module $_svnRev`
+	if [[ "$_svnRev" = 'local' ]] then
+		execCmd "cat $_module/$_path" "$_nonFail" "$_reqOut"
+	else
+		execCmd "svn cat $_svnRevOpt $svnBase$_module/$_svnRev$_path" "$_nonFail" "$_reqOut"
+	fi
+}
+
+function svnCheckout {
+	local _module _path _dst _nonFail _reqOut _svnRev _svnRevOpt
+	_module=$1
+	_path=$2
+	_dst=$3
+  _nonFail=$4
+	_reqOut=$5
+ 
+	[[ -z "$_module" ]] && _module="$vcsModule"
+	_svnRev=`svnGetRev ${vcsModules[$_module]}`
+
+  [[ -n "$svnProjectRev" ]] &&	_svnRevOpt="-r $svnProjectRev"
+
+	if [[ -z "$_dst" ]] then 
+    [[ -z "$distCheckout" ]] &&  _dst="$targetDir/`basename $_module`" || _dst="$targetDir"
+  fi 
+    
+	_module=`moduleGetAlias $_module $_svnRev`
+	if [[ "$_svnRev" = "local" ]] then
+		execCmd "mkdir -p $_dst" "$_nonFail" "$_reqOut"
+		execCmd "cp -r $_module/$_path/* $_dst" "$_nonFail" "$_reqOut"
+	else
+	execCmd "svn checkout $_svnRevOpt $svnBase$_module/$_svnRev$_path $_dst" "$_nonFail" "$_reqOut"
+	fi
+}
+
+function logFromJira4 {
+	printDBG "invoking ${0}[$stgNum]"
+
+	[[ -z "$jiraKey" ]] && return
+
+  local _version_code _release_code 
+
+  _version_code=`curl -s --insecure "$jira_site/browse/$jiraKey?selectedTab=com.atlassian.jira.plugin.system.project%3Achangelog-panel&allVersions=true&$jira_auth_string" | awk -F'/|"' -v ver=$modBuild '{if($0 ~ ">" ver "<"){print $10}}'`
+  [[ -z "$_version_code" ]] && printERR "an error occured while fetching changelog from jira. _vesion_code is empty"
+
+  _release_code=`curl -s --insecure "$jira_site/browse/$jiraKey/fixforversion/$_version_code?$jira_auth_string" | awk '/release-notes/{print}' | grep -o 'projectId=.\+version=[[:digit:]]\+'`
+  [[ -z "$_release_code" ]] && printERR "an error occured while fetching changelog from jira. _release_code is empty"
+
+  curl -s --insecure "$jira_site/secure/ReleaseNote.jspa?atl_token=AZlt_YQdO4&styleName=Text&$_release_code&Create=Create&$jira_auth_string" | sed  -n -e '/<textarea/,/<\/textarea/p' | sed -e '/^$/d' -e '$d' -e 's/^ *\* /- /' -e 's/] - /] /' -e '/^\*\*/d' | sed -e '1,2d' | \
+  {
+    while read _l; do
+      changeLog[$(($#changeLog+1))]="$_l"
+      printDBG "$_l" 2
+    done
+  }
+}
+
+function logFromJira {
+	printDBG "invoking ${0}[$stgNum]"
+
+	[[ -z "$jiraKey" ]] && return
+
+	#getting changelog from jira, formatting and putting in spec
+	wget -q -O - --no-check-certificate --post-data $jira_auth_string "$jira_site/browse/${jiraKey}?report=com.atlassian.jira.plugin.system.project:changelog-panel&subset=-1"  | \
+	lynx -dump -stdin | \
+	awk --assign productVersion="$modBuild" \
+	'BEGIN {op=0} {
+				if (op==1 && $0 !~ "Released") { 
+					out=$0;
+					gsub(/[[:space:]]+/," ",out);
+					gsub(/\[[0-9]+\]/,"",out);
+					nl=$0 ~ /^[[:space:]]+\[[0-9]+\]/; #identifies new changelog line
+					if (nl && lnl) printf "\n";
+					lnl=nl;
+					printf "%s%s%s", nl?"-":"",out, nl?"":"\n";
+				}
+				if($0 ~ "Released") { 
+					if (op==1) op=-1; 
+					if ( $0 ~ productVersion && op==0) { op=1; gsub(/\[[0-9]+\]/,""); print $2}
+				} 
+			}END{ if (op==0) { print "ERR - failed to fetch changelog from jira" > "/dev/stderr"; exit -1 }
+	}' | \
+	{
+		read _productVersion
+		printDBG "fetched from jira. changelog for $jiraKey $_productVersion:" 2
+		while read _l; do
+			changeLog[$(($#changeLog+1))]="$_l" 
+			printDBG "$_l" 2
+		done 
+	}
+	if [[ "$modBuild" != "$_productVersion" ]] then
+		printERR "an error occured while fetching changelog from jira. the vesion $modBuild is not found in changelog" 
+	fi
+}
+
+function modifySpec {
+	printDBG "invoking ${0}[$stgNum]"
+	
+	local _err _packager _buildDate _i
+	if [[ ! -f $specFile ]] then
+		printERR "$specFile does not exists"
+	fi
+	#replacing version in specfile
+	execCmd "sed -i -e 's/\(^Version:\)\(.*\)/\1 $modBuild/'  $specFile"
+  #replacing release in specfile
+  [[ $rpmRel == '' ]] || execCmd "sed -i -e 's/\(^Release:\)\(.*\)/\1 $rpmRel/'  $specFile"
+  
+	#verify spec by querying it, if rpmMacros exists then substituting first macro
+	_err=`execCmd "rpm -q $rpmOptMacros ${rpmMacros[1]} --qf '%{NAME}' --specfile $specFile 2>&1 >/dev/null" "" 1`
+	[[ -n "$_err" ]] && printERR "error in specfile $_err"
+	_packager=`execCmd "rpm -E '%packager'" "" '1'`
+	_buildDate=`execCmd "date '+%a %b %d %Y'" "" '1'`
+	changeLog[1]=`execCmd "rpm -q $rpmOptMacros ${rpmMacros[1]} --qf '* $_buildDate $_packager %|EPOCH?{%{EPOCH}:}|%{VERSION}-%{RELEASE}\n' --specfile $specFile | head -1" '' '1'`
+	#check if log entry already exists in spec
+	verFromStamp=$( print -- "${changeLog[1]}" | awk '{print $(NF)}' )
+	if [[ `execCmd "rpm -q $rpmOptMacros ${rpmMacros[1]} --changelog --specfile $specFile | awk '/^\*.+'"$verFromStamp"'$/ { print 1; exit }'" '' '1'` == '1' ]] then
+		printERR "changelog entry with $verFromStamp alredy exists"
+	fi
+	#piping ed commands
+	{
+		print -- '/^%changelog/a'
+		for _i in "${changeLog[@]}"
+		do
+			print -- "${_i}"
+		done
+		print "\n.\nw\nq\n"
+	} | ed -s $specFile
+}
+
+function svnPrepare {
+	printDBG "invoking ${0}[$stgNum]"
+
+	local _vcsModule _svnRev _targetDir _l _oneLine
+
+	for _vcsModule in ${(k)vcsModules}
+	do
+		_oneLine=''
+		_svnRev=`svnGetRev ${vcsModules[$_vcsModule]}`
+		if [[ -n "${vcsModules[$_vcsModule]}" ]] then
+			if [[ -n "${vcsSubModules[$_vcsModule]}" ]] then
+				for _subModule in ${vcsSubModules[$_vcsModule]}
+				do
+				# 'magic' '/' in subModule definition. should be considered as a 'long patch'
+				# if a subModule definition contain '/' at the end, 
+				# the target path will be the same as listed in submodule, not only the last dir
+					if [[ -z ${_subModule##*/} ]] then
+						_targetDir=$targetDir/$_subModule
+					else 
+						_targetDir=$targetDir/`basename $_subModule`
+					fi
+					svnCheckout $_vcsModule $_subModule $_targetDir '' 1 
+				done
+			else
+				svnCheckout $_vcsModule "" "" "" 1 
+			fi
+		fi | { \
+			while read _l; do
+				if [[ -z "${_l#+(Checked out revision )+([0-9]*).}" && -z "$_oneLine" ]] then
+					if [[ ${#changeLog[*]} -gt 2 ]] then
+						changeLog[$(($#changeLog+1))]="- $_l from $_vcsModule/$_svnRev"
+					else
+						changeLog[2]="- $_l from $_vcsModule/$_svnRev"
+					fi
+					_oneLine='1';
+				fi
+			done
+		}
+	done
+}
+
+function svnCommit {
+	printDBG "invoking ${0}[$stgNum]"
+
+	if [[ "$vcsRel" == "local" ]] then
+		printERR "Commit not allowed in 'local' mode"
+	fi
+
+	execCmd "svn commit $targetDir/`basename $vcsModule` -m 'abt commit'"
+}
+
+function svnCommitSpec {
+	printDBG "invoking ${0}[$stgNum]"
+
+	if [[ "$vcsRel" == "local" ]] then
+		printERR "Commit not allowed in 'local' mode"
+	fi
+
+	local _trunk_ver
+  if [[ $vcsRel == 'tag' ]] then
+ 		if [[ -n "${vcsSubModules[$vcsModule]}" ]] then
+			[[ -d "$targetDir/$specDir" ]] || printERR "$targetDir/$specDir does not exists"
+			pushd $targetDir/$specDir
+		else
+			[[ -d "$targetDir/`basename $vcsModule`/$specDir" ]] || printERR "`basename $vcsModule`/$specDir does not exists"
+			pushd $targetDir/`basename $vcsModule`/$specDir
+		fi
+		execCmd "svn commit -m 'abt $modBuild commit'"
+		execCmd "svn switch $svnBase$vcsModule/${svnDirs[branch]}/${modVer}/$specDir"
+		modifySpec
+		execCmd "svn commit -m 'abt $modBuild commit'"
+		execCmd "svn switch $svnBase$vcsModule/${svnDirs[trunk]}/$specDir" 
+		_trunk_ver=`execCmd "rpm -q --qf '%{VERSION}\n' --specfile $specFile | head -1" "" 1`
+		if [[ `python -c "import rpm; print rpm.labelCompare(('','$_trunk_ver',''),('','$modBuild',''))"` -lt 0 ]] then
+			modifySpec
+			execCmd "svn commit -m 'abt $modBuild commit'"
+		fi
+		execCmd "svn switch $svnBase$vcsModule/${svnDirs[tag]}/$modBuild/$specDir"
+		popd
+	fi
+}
+
+function rpmDirPrepare {
+	printDBG "invoking ${0}[$stgNum]"
+
+	local _tar _spec
+	_tar=`basename $targetDir`
+	if [[ $(find $targetDir -maxdepth 1 \! -name RPM | wc -l ) -gt 1 ]] then
+		execCmd "tar --exclude '.svn' --exclude 'CVS' --exclude '.git' -C $workDir -cvzf $rpmSrcDir/$_tar.tar.gz $_tar" 
+	fi
+	[[ -d  $workDir$_tar/RPM/SOURCES ]] && execCmd "find $workDir$_tar/RPM/SOURCES/ -maxdepth 1 -type f -exec cp '{}' $rpmSrcDir ';'"
+	#backup spec file
+	_spec=`basename $specFile`
+	[[ -f "$rpmSpecDir/$_spec" ]] && execCmd "cp $rpmSpecDir/$_spec $rpmSpecDir/$_spec.bak"
+	execCmd "cp $specFile $rpmSpecDir"
+}
+
+function rpmBuild {
+  printDBG "invoking ${0}[$stgNum], using ${rpmBuildMethod:-rpmbuild}"
+
+	local _pkg _pkgFile _srcPkgFile
+  typeset -A _uniqPackages
+
+  if [[ "$rpmBuildMethod" == 'mock' ]] then
+    execCmd "mock $mockDebugOpt --no-clean --no-cleanup-after --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --buildsrpm --spec $specFile --sources $rpmSrcDir"
+   _srcPkgFile=`execCmd "ls $mockDir/results/*.src.rpm" '' '1'`
+    for (( _buildCycle=1; _buildCycle <= $((${#rpmMacros}?${#rpmMacros}:1)); _buildCycle++ ))
+    do
+      _mockCleanUp='--no-clean'
+      _t=`execCmd "print -- ${rpmMacros[$_buildCycle]} | grep -o '__target \+[ix_3468]\+'" 'yes' '1'`
+      _arch=${_t##__target }
+  
+      if [[ -n "$_arch" && "$_arch" != 'noarch' && "$mockConfigFile" != "${${modBuild%.*}%.*}"-$_arch ]] then
+        _mockCleanUp=''
+        printDBG "Arch changed to $_arch" 2
+        setMockConfigFile $_arch
+      fi
+
+      execCmd "mock $mockDebugOpt $_mockCleanUp --no-cleanup-after --installdeps --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --rebuild $_srcPkgFile"
+    done
+    packageList[1]=$_srcPkgFile
+    for _pkgFile in `execCmd "ls $mockDir/results/*[h64].rpm" '' '1'`
+    do
+      if [[ -f $_pkgFile && -z ${_uniqPackages[$_pkgFile]} ]] then
+        packageList[$(($#packageList+1))]="$_pkgFile"
+        _uniqPackages[$_pkgFile]="$_pkgFile"
+      fi
+    done
+  else
+    for (( _buildCycle=1; _buildCycle <= $((${#rpmMacros}?${#rpmMacros}:1)); _buildCycle++ ))
+    do
+      execCmd "rpmbuild -ba $rpmOptMacros  ${rpmMacros[$_buildCycle]} $specFile 2>&1"
+      for _pkg in `execCmd "rpm -q $rpmOptMacros ${rpmMacros[$_buildCycle]} --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}.rpm\n' --specfile $specFile" '' '1'`
+      do
+        _pkgFile=`rpm -E '%_rpmdir/'``echo $_pkg | awk -F. '{print $(NF-1)}'`"/$_pkg"
+        if [[ -f $_pkgFile && -z ${_uniqPackages[$_pkgFile]} ]] then
+          packageList[$(($#packageList+1))]="$_pkgFile"
+          _uniqPackages[$_pkgFile]="$_pkgFile"
+        fi
+      done
+    done
+
+    _srcPkgFile=`execCmd "rpm -qp --qf '%{SOURCERPM}\n' ${packageList[2]}" '' '1'`
+    [[ -z "$_srcPkgFile" ]] && printERR "no packages files found. please report to abt developers"
+    packageList[1]="`rpm -E '%_srcrpmdir'`/$_srcPkgFile"
+  fi
+}
+
+function rpmRepoCopy {
+	printDBG "invoking ${0}[$stgNum]"
+	
+	local _i	
+  local _err
+  local _repo_from_release 
+
+  [[ "$repoUseRelease" == 'True' ]] && _repo_from_release=`rpm -qp --qf '%{RELEASE}' "${packageList[1]}" | grep -o el.`
+  if [[ -n "$_repo_from_release" ]]; then
+    srpmRepoHome=`dirname $srpmRepoHome`/$_repo_from_release
+    rpmRepoHome=`dirname $rpmRepoHome`/$_repo_from_release
+  fi
+
+	_err=`execCmd "test -d $srpmRepoHome/SRPMS.$repo && echo 0 || echo 1" 'yes' '1' "$rpmRepoHost"`
+	[[ $_err != '0' ]] && execCmd "install -m 775 -g rpm -d $srpmRepoHome/SRPMS.$repo" '' '' "$rpmRepoHost"
+  copyCmd "${packageList[1]}" "$srpmRepoHome/SRPMS.$repo" "$rpmRepoHost"
+
+	_err=`execCmd "test -d $rpmRepoHome/RPMS.$repo && echo 0 || echo 1" 'yes' '1' "$rpmRepoHost"`
+	[[ $_err != '0' ]] && execCmd "install -m 775 -g rpm -d $rpmRepoHome/RPMS.$repo" '' '' "$rpmRepoHost"
+	for (( _i=2; _i<=${#packageList[@]}; _i+=1 ))
+	do
+    copyCmd "${packageList[$_i]}" "$rpmRepoHome/RPMS.$repo" "$rpmRepoHost"
+	done
+}
+
+function rpmUpdateRepo {
+	printDBG "invoking ${0}[$stgNum]"
+  local _err
+# yum
+#  _err=`execCmd "test -d $rpmRepoHome/repodata.$repo/repodata && echo 0 || echo 1" '1' '1' "$rpmRepoHost"`
+#  if [[ $_err != '0' ]] then 
+#    execCmd "install -m 775 -g rpm -d $rpmRepoHome/repodata.$repo/repodata" '' '' "$rpmRepoHost"
+#    execCmd "ln -s -f -t $rpmRepoHome/RPMS.$repo $rpmRepoHome/repodata.$repo/repodata" '' '' "$rpmRepoHost"
+#  fi
+#  execCmd "createrepo --update -o $rpmRepoHome/repodata.$repo $rpmRepoHome/RPMS.$repo" '' '' "$rpmRepoHost"
+#  execCmd "chmod g+w $rpmRepoHome/repodata.$repo/repodata" '' '' "$rpmRepoHost"
+#  execCmd "chgrp rpm $rpmRepoHome/repodata.$repo/repodata" '' '' "$rpmRepoHost"
+
+# apt 
+#  execCmd "genbasedir --partial $rpmRepoHome $repo" '' '' "$rpmRepoHost"
+}
+
+function cleanUp {
+	printDBG "invoking ${0}[$stgNum]"
+	local _i
+
+	for _i in "${packageList[@]}"
+	do
+		execCmd "rm $_i"
+	done 
+	execCmd "rpmbuild --nodeps --clean --rmsource $rpmOptMacros ${rpmMacros[1]} $specFile 2>&1"
+	execCmd "rm -rf $targetDir"
+  if [[ "$rpmBuildMethod" == 'mock' ]] then
+    execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' --scrub=chroot"
+    execCmd "rm -rf $mockDir"
+  fi
+	execCmd "rm -f $logFile"
+  if [[ -d `dirs -p | sed -n '2p'` ]] then
+    popd
+  else
+    cd 
+  fi
+
+}
+
+function rpmRepoCheck {
+	printDBG "invoking ${0}[$stgNum]"
+
+	local _warn _r _pkg _srcPkgReal _srcPkgDest
+	_srcPkgReal=`rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}.src.rpm\n' --specfile $specFile | head -n 1`
+  _srcPkgDest=`awk 'BEGIN{"rpm -E %_os_release"|getline rel;print gensub(rel "\\\" ".","","G",ARGV[1])}' $_srcPkgReal`
+	_r=`execCmd "[ -f $srcRpmRepo/$srcPkgDest ] && echo 1" "" "" "$rpmRepoHost"`
+	if [[ -n "$_r" ]] then
+		_warn=1
+		printDBG "WARNING: source package $srcPkgDest already exist in $rpmRepoHost:$srcRpmRepo"
+  fi
+
+  for _pkg in `rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}.rpm\n' --specfile $specFile`
+  do
+    _r=`execCmd "[ -f $binRpmRepo/$_pkg ] && echo 1" "" "" $rpmRepoHost`
+		if [ -n "$_r" ]; then
+			_warn=1
+      printDBG "WARNING: package $_pkg already exist in $rpmRepoHost:$bitRpmRepo."
+		fi
+  done
+
+  if [[ -n "$_warn" ]] then
+    echo "Press RETURN to continue or Ctrl+C to Cancel"
+    read
+  fi
+}

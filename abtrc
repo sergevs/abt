@@ -1,0 +1,49 @@
+# stages definition
+#
+maxStages=100
+
+stage[1]='svnInitEnv'
+stage[2]='rpmInitEnv'
+stage[10]='svnPrepare'
+#stage[20]='logFromJira4'
+stage[30]='modifySpec'
+stage[40]='rpmDirPrepare'
+stage[50]='rpmBuild'
+#stage[60]='svnCommitSpec'
+stage[70]='rpmRepoCopy'
+stage[80]='rpmUpdateRepo'
+stage[90]='cleanUp'
+
+# default functions file
+functionsFile='/etc/abt/abt.functions'
+
+# default method: rpmbuild or mock
+rpmBuildMethod='rpmbuild'
+
+# default mock config directory
+mockConfigDir='/etc/abt/mock/'
+
+# default svn root path
+svnBase='https://github.com/sergevs/'
+
+# default work dir for all operations
+workDir="$HOME/tmp/"
+
+# default repository host
+#rpmRepoHost="repo"
+
+# if set, put packages to release selection string directory ( currently implemented for el. )
+# this option STRIP the latest path from RepoHome variables below.
+# thats allow to put packages to a 'default' repository if repo inforamtion can not be guessed from package release
+repoUseRelease='True'
+
+# default binary packages path
+rpmRepoHome="/home/repos/"
+srpmRepoHome="/home/repos/"
+
+# default repository
+repo="test"
+
+# jira auth settings
+#jira_auth_string='os_username=USER&os_password=PASSWORD'
+#jira_site='https://jira.com'
