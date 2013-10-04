@@ -609,7 +609,7 @@ function rpmRepoCopy {
   local _err
   local _repo_from_release 
 
-  [[ "$repoUseRelease" == 'True' ]] && _repo_from_release=`rpm -qp --qf '%{RELEASE}' "${packageList[1]}" | grep -o el.`
+  [[ "$repoUseRelease" == 'True' ]] && _repo_from_release=`execCmd "rpm -qp --qf '%{RELEASE}' ${packageList[1]} | grep -o el." 'yes' '1'` ||:
   if [[ -n "$_repo_from_release" ]]; then
     srpmRepoHome=`dirname $srpmRepoHome`/$_repo_from_release
     rpmRepoHome=`dirname $rpmRepoHome`/$_repo_from_release
@@ -629,16 +629,9 @@ function rpmRepoCopy {
 
 function rpmUpdateRepo {
 	printDBG "invoking ${0}[$stgNum]"
-  local _err
 # yum
-#  _err=`execCmd "test -d $rpmRepoHome/repodata.$repo/repodata && echo 0 || echo 1" '1' '1' "$rpmRepoHost"`
-#  if [[ $_err != '0' ]] then 
-#    execCmd "install -m 775 -g rpm -d $rpmRepoHome/repodata.$repo/repodata" '' '' "$rpmRepoHost"
-#    execCmd "ln -s -f -t $rpmRepoHome/RPMS.$repo $rpmRepoHome/repodata.$repo/repodata" '' '' "$rpmRepoHost"
-#  fi
-#  execCmd "createrepo --update -o $rpmRepoHome/repodata.$repo $rpmRepoHome/RPMS.$repo" '' '' "$rpmRepoHost"
-#  execCmd "chmod g+w $rpmRepoHome/repodata.$repo/repodata" '' '' "$rpmRepoHost"
-#  execCmd "chgrp rpm $rpmRepoHome/repodata.$repo/repodata" '' '' "$rpmRepoHost"
+   execCmd "createrepo --update $rpmRepoHome/RPMS.$repo" '' '' "$rpmRepoHost"
+   execCmd "createrepo --update $srpmRepoHome/SRPMS.$repo" '' '' "$rpmRepoHost"
 
 # apt 
 #  execCmd "genbasedir --partial $rpmRepoHome $repo" '' '' "$rpmRepoHost"
