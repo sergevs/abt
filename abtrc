@@ -38,8 +38,8 @@ workDir="$HOME/tmp/"
 repoUseRelease='True'
 
 # default binary packages path
-rpmRepoHome="/home/repos/"
-srpmRepoHome="/home/repos/"
+rpmRepoHome="/home/repos/default/"
+srpmRepoHome="/home/repos/default/"
 
 # default repository
 repo="test"
