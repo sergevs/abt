@@ -121,10 +121,10 @@ function svnInitEnv {
 
 	svnList "" "$specDir/$abtFile" "1"
 	if [[ $? -eq 0 ]] then
-		_tmp_abt_file=`echo "$abtFile.$vcsRel.$modBuild" | sed -e 's#/#_#g'`
-		svnCat "" "$specDir/$abtFile" "" "1" > ${workDir}$_tmp_abt_file
-		source "${workDir}$_tmp_abt_file" || printERR "error while sourcing ${workDir}$_tmp_abt_file"
-		execCmd "rm ${workDir}$_tmp_abt_file"
+		_tmp_abt_file=`execCmd "mktemp --tmpdir=${workDir} abt.XXXXXXXXXX" '' '1'`
+		svnCat "" "$specDir/$abtFile" "" "1" > $_tmp_abt_file
+		source "$_tmp_abt_file" || printERR "error while sourcing $_tmp_abt_file"
+		execCmd "rm $_tmp_abt_file"
 	fi
 	if [[ -z "$specFile" || -z "$pkgName" ]] then
 		printERR "specFile $specFile or pkgName $pkgName is not defined"
