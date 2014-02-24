@@ -20,6 +20,9 @@ functionsFile='/etc/abt/abt.functions'
 # default method: rpmbuild or mock
 rpmBuildMethod='rpmbuild'
 
+# mock additional options
+mockOptions='--no-cleanup-after'
+
 # default mock config directory
 mockConfigDir='/etc/abt/mock/'
 

@@ -184,7 +184,7 @@ function rpmInitEnv {
 	
   if [[ "$rpmBuildMethod" == 'mock' ]] then
       setMockConfigFile `arch`
-      mockRoot=`execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' --print-root" '' '1'`
+      mockRoot=`execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --print-root" '' '1'`
       mockDir="${workDir}mock/${${mockRoot##*mock/}%*/root/}"
       set -o nullglob
       if [[ -n `print /tmp/abt.*.lock | grep -v '^$'` ]] then
@@ -195,8 +195,8 @@ function rpmInitEnv {
       set +o nullglob
       [[ -d $mockDir ]] &&  execCmd "rm -rf $mockDir"
       execCmd "mkdir -p $mockDir/results"
-      execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' --scrub=chroot"
-      execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' --init 2>&1"
+      execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --scrub=chroot"
+      execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --init 2>&1"
   fi
   
   targetDir="$workDir$pkgName-${modBuild:-targetDir}"
@@ -558,7 +558,7 @@ function rpmBuild {
   typeset -A _uniqPackages
 
   if [[ "$rpmBuildMethod" == 'mock' ]] then
-    execCmd "mock $mockDebugOpt --no-clean --no-cleanup-after --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --buildsrpm --spec $specFile --sources $rpmSrcDir"
+    execCmd "mock $mockDebugOpt --no-clean $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --buildsrpm --spec $specFile --sources $rpmSrcDir"
    _srcPkgFile=`execCmd "ls $mockDir/results/*.src.rpm" '' '1'`
     for (( _buildCycle=1; _buildCycle <= $((${#rpmMacros}?${#rpmMacros}:1)); _buildCycle++ ))
     do
@@ -572,7 +572,7 @@ function rpmBuild {
         setMockConfigFile $_arch
       fi
 
-      execCmd "mock $mockDebugOpt $_mockCleanUp --no-cleanup-after --installdeps --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --rebuild $_srcPkgFile"
+      execCmd "mock $mockDebugOpt $_mockCleanUp $mockOptions --installdeps --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --rebuild $_srcPkgFile"
     done
     packageList[1]=$_srcPkgFile
     for _pkgFile in `execCmd "ls $mockDir/results/*[h64].rpm" '' '1'`
@@ -585,7 +585,7 @@ function rpmBuild {
   else
     for (( _buildCycle=1; _buildCycle <= $((${#rpmMacros}?${#rpmMacros}:1)); _buildCycle++ ))
     do
-      execCmd "rpmbuild -ba $rpmOptMacros  ${rpmMacros[$_buildCycle]} $specFile 2>&1"
+      execCmd "rpmbuild -ba $rpmOptMacros  ${rpmMacros[$_buildCycle]} $rpmbuildOpt $specFile 2>&1"
       for _pkg in `execCmd "rpm -q $rpmOptMacros ${rpmMacros[$_buildCycle]} --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}.rpm\n' --specfile $specFile" '' '1'`
       do
         _pkgFile=`rpm -E '%_rpmdir/'``echo $_pkg | awk -F. '{print $(NF-1)}'`"/$_pkg"
@@ -648,7 +648,7 @@ function cleanUp {
 	execCmd "rpmbuild --nodeps --clean --rmsource $rpmOptMacros ${rpmMacros[1]} $specFile 2>&1"
 	execCmd "rm -rf $targetDir"
   if [[ "$rpmBuildMethod" == 'mock' ]] then
-    execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' --scrub=chroot"
+    execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --scrub=chroot"
     execCmd "rm -rf $mockDir"
   fi
 	execCmd "rm -f $logFile"

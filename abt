@@ -55,7 +55,7 @@ EOF
   exit 1
 }
 
-while getopts "a:b:c:d:e:hln:o:m:r:s:t:u:v:A:D:C:" opt; do
+while getopts "a:b:c:d:e:hln:o:p:m:r:s:t:u:v:A:D:C:" opt; do
 	case $opt in 
 		a) rpmRel="$OPTARG" ;;
 		b) vcsRel="$OPTARG" ;;
@@ -66,6 +66,7 @@ while getopts "a:b:c:d:e:hln:o:m:r:s:t:u:v:A:D:C:" opt; do
 		l) isLog=1;;
 		n) svnProjectRev="$OPTARG";;
 		o) specFile="$OPTARG" ;;
+		p) rpmbuildOpt="$OPTARG" ;;
 		r) repo="$OPTARG";;
 		s) skipStages="$OPTARG" ;;
 		t) configType="$OPTARG";;
