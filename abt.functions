@@ -54,7 +54,8 @@ isLog=0
 
 mockDebugOpt=''
 #default log file
-logFile="${workDir}abt-`date +%d-%b-%H:%M:%S`.log"
+_logFileMask=abt-`date +%d%b-%H%M%S.XXXXXX`.log
+logFile=`mktemp --tmpdir=${workDir} $_logFileMask`
 [ -f $logFile ] && rm -rf $logFile
 
 canContinue='no'
@@ -562,7 +563,7 @@ function rpmBuild {
    _srcPkgFile=`execCmd "ls $mockDir/results/*.src.rpm" '' '1'`
     for (( _buildCycle=1; _buildCycle <= $((${#rpmMacros}?${#rpmMacros}:1)); _buildCycle++ ))
     do
-      _mockCleanUp='--no-clean'
+      [[ $mockOptions =~ "--no-cleanup-after" ]] &&  _mockCleanUp='--no-clean'
       _t=`execCmd "print -- ${rpmMacros[$_buildCycle]} | grep -o '__target \+[ix_3468]\+'" 'yes' '1'`
       _arch=${_t##__target }
   
