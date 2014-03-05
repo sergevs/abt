@@ -106,7 +106,12 @@ function printDBG {
 }
 
 function svnInitEnv {
-	printDBG "invoking ${0}[$stgNum]"
+  if [[ -z "$vcsModule" ]] then
+    printDBG "svn module empty, assuming build from a spec file" 2
+    return 0
+  else
+	  printDBG "invoking ${0}[$stgNum]"
+  fi
 
 	local _i 
 # checking if an abt script is exists and  source it
@@ -150,6 +155,12 @@ function setMockConfigFile {
   printDBG "invoking ${0}" 2
   local _arch
   _arch=$1
+
+  if [[ -f "$mockConfigDir/${optMockConfigFile}" ]] then
+      printDBG "using specified $optMockConfigFile explicitly" 2
+      mockConfigFile="${optMockConfigFile%.cfg}"
+      return 0
+  fi
   if [[ -n "$optMockConfigFile" ]] then
     mockConfigFile="${optMockConfigFile}-$_arch"
     printDBG "set mock config file to $mockConfigFile" 2
@@ -166,7 +177,7 @@ function setMockConfigFile {
 }
 
 function rpmInitEnv {
-  printDBG "invoking ${0}[$stgNum], initializing ${rpmBuildMethod:-rpmbuild}"
+  printDBG "invoking ${0}[$stgNum], initializing ${rpmBuildMethod:-rpmbuild}${vcsModule:-, using specfile $specFile}"
 
   checkEnvironment
 
@@ -200,6 +211,10 @@ function rpmInitEnv {
       execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --init 2>&1"
   fi
   
+  if [[ -z "$vcsModule" ]] then
+    printDBG "svn module empty, assuming build from a spec file" 2
+    return 0
+  fi
   targetDir="$workDir$pkgName-${modBuild:-targetDir}"
   [[ -d $targetDir ]] && rm -rf $targetDir
 	# magic '/' in specFile definition
@@ -362,7 +377,12 @@ function svnCheckout {
 }
 
 function logFromJira4 {
-	printDBG "invoking ${0}[$stgNum]"
+  if [[ -z "$vcsModule" ]] then
+    printDBG "svn module empty, assuming build from a spec file" 2
+    return 0
+  else
+	  printDBG "invoking ${0}[$stgNum]"
+  fi
 
 	[[ -z "$jiraKey" ]] && return
 
@@ -422,7 +442,12 @@ function logFromJira {
 }
 
 function modifySpec {
-	printDBG "invoking ${0}[$stgNum]"
+  if [[ -z "$vcsModule" ]] then
+    printDBG "svn module empty, assuming build from a spec file" 2
+    return 0
+  else
+	  printDBG "invoking ${0}[$stgNum]"
+  fi
 	
 	local _err _packager _buildDate _i
 	if [[ ! -f $specFile ]] then
@@ -456,7 +481,12 @@ function modifySpec {
 }
 
 function svnPrepare {
-	printDBG "invoking ${0}[$stgNum]"
+  if [[ -z "$vcsModule" ]] then
+    printDBG "svn module empty, assuming build from a spec file" 2
+    return 0
+  else
+	  printDBG "invoking ${0}[$stgNum]"
+  fi
 
 	local _vcsModule _svnRev _targetDir _l _oneLine
 
@@ -538,7 +568,12 @@ function svnCommitSpec {
 }
 
 function rpmDirPrepare {
-	printDBG "invoking ${0}[$stgNum]"
+  if [[ -z "$vcsModule" ]] then
+    printDBG "svn module empty, assuming build from a spec file" 2
+    return 0
+  else
+	  printDBG "invoking ${0}[$stgNum]"
+  fi
 
 	local _tar _spec
 	_tar=`basename $targetDir`
@@ -646,7 +681,7 @@ function cleanUp {
 	do
 		execCmd "rm $_i"
 	done 
-	execCmd "rpmbuild --nodeps --clean --rmsource $rpmOptMacros ${rpmMacros[1]} $specFile 2>&1"
+	[[ -n "$vcsModule" ]] && execCmd "rpmbuild --nodeps --clean --rmsource $rpmOptMacros ${rpmMacros[1]} $specFile 2>&1" || printDBG "skipping rpm sources clean" 2
 	execCmd "rm -rf $targetDir"
   if [[ "$rpmBuildMethod" == 'mock' ]] then
     execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --scrub=chroot"

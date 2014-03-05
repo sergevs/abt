@@ -100,10 +100,12 @@ shift $(($OPTIND - 1))
 vcsModule=$1
 
 # vcs Module verification
-[[ -z "$vcsModule" ]] && printERR "svn module is undefined, for usage see abt -h"
+[[ -z "$vcsModule" ]] && [[ -z "$specFile" ]] && printERR "svn module or specfile[-o] option is not specified, see abt -h"
+[[ -n "$vcsModule" ]] && [[ -n "$specFile" ]] && printERR "svn module conflicts with specfile[-o] option, see abt -h"
+[[ -n "$specFile" ]] && [[ -n "$modBuild" ]] && printERR "verion[-v] option conflicts with specfile[-o], see abt -h"
 
 # version verification
-[[ -z "$modBuild" ]] && printERR "-v <product version> is mandatory"
+[[ -z "$specFile" ]] && [[ -z "$modBuild" ]] && printERR "-v <product version> is mandatory"
 [[ -n "${modBuild##+([0-9]).+([0-9]).+([0-9]).+([0-9])}" ]] && printERR "Wrong version $modBuild, have to be in x.x.x.x form"
 modVer=${modBuild%[.-]+([0-9])}
 
