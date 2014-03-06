@@ -178,7 +178,11 @@ function setMockConfigFile {
 
 function rpmInitEnv {
   local _m
-  [[ -z "$vcsModule" ]] && _m=", using specfile $specFile"
+  if [[ -z "$vcsModule" ]] then
+    _m=", using specfile $specFile"
+    [[ -f $specFile ]] || printERR "$specFile not found, please make sure to specify a FULL or relative to home(~) path"
+    pkgName=`execCmd "rpm -q --qf '%{NAME}\n' --specfile $specFile | head -1" '' '1'`
+  fi
   printDBG "invoking ${0}[$stgNum], initializing ${rpmBuildMethod:-rpmbuild}$_m"
 
   checkEnvironment

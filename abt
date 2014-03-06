@@ -34,7 +34,7 @@ Options:
            [-h ]
            [-l <enable logging> ]
            [-n <svn revision> ]
-           [-o <build from spec file> ]
+           [-o <build from spec file> ]  please specify FULL or relative to home(~) path
            [-m 0|1|<mock config> ]  0 - don't use mock, 1 - use mock, <mock config> - config file without arch and cfg extention
            [-p <rpmbuild  options> ]
            [-r <repository> ]
