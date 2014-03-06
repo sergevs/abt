@@ -177,7 +177,9 @@ function setMockConfigFile {
 }
 
 function rpmInitEnv {
-  printDBG "invoking ${0}[$stgNum], initializing ${rpmBuildMethod:-rpmbuild}${vcsModule:-, using specfile $specFile}"
+  local _m
+  [[ -z "$vcsModule" ]] && _m=", using specfile $specFile"
+  printDBG "invoking ${0}[$stgNum], initializing ${rpmBuildMethod:-rpmbuild}$_m"
 
   checkEnvironment
 
