@@ -113,6 +113,7 @@ modVer=${modBuild%[.-]+([0-9])}
 [[ -n "${isDebug##+([0-9])}" ]] && printERR "debug level have to be a number"
 
 # parse skipStages option and undefine stages
+printDBG "started $0 `date +'%H:%M:%S %d.%m.%Y'`" 1
 if [[ -n "$skipStages" ]] then
 	for _skip in ${(z)skipStages}
 	do
@@ -139,5 +140,6 @@ do
 	[[ -n "${stage[$stgNum]}" ]] && [[ "${stage[$stgNum]}" != 'none' ]] && ${stage[$stgNum]}
 done
 
+printDBG "finished $0 `date +'%H:%M:%S %d.%m.%Y'`" 1
 #it's required to explicity define success return value
 exit 0

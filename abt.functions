@@ -147,8 +147,8 @@ function checkEnvironment {
     [[ -x "$_mockBin"  ]] || printERR "mock not found"
     [[ `id | grep  -o '\((mock)\)'` != '(mock)' ]] && printERR "in the order to use mock, you have to be a member of mock group"
     _mockVersion=`execCmd "$_mockBin --version" '' '1'`
-    [[ -n "${_mockVersion##1.0*}" ]] && printERR "only mock 1.0.x is supported, you have $_mockVersion"
-    [[ `df|awk '/\/dev\/shm/{printf "%.0f\n", $4/1024/1024}'` -lt 1 ]] && printERR "/dev/shm have less than 1Gb, please clean and run again"
+#    [[ -n "${_mockVersion##1.0*}" ]] && printERR "only mock 1.0.x is supported, you have $_mockVersion"
+    [[ `df|awk '/^tmpfs.+\/dev\/shm/{printf "%.0f\n", $4/1024/1024}'` -lt 1 ]] && printERR "/dev/shm have less than 1Gb, please clean and run again"
   fi
 }
 
