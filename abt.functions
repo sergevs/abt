@@ -617,6 +617,65 @@ function rpmBuild {
       fi
 
       execCmd "mock $mockDebugOpt $_mockCleanUp $mockOptions --installdeps --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --rebuild $_srcPkgFile"
+      if [[ -n "$optSaveBuildEnv" ]]; then
+        [[ -z "$saveBuildEnvPath" ]] && printDBG "-S is set but saveBuildEnvPath variable is not configured, backup will not be performed" 
+        [[ -n "$saveBuildEnvPath" && ! -d "$saveBuildEnvPath" ]] && printDBG "-S is set but $saveBuildEnvPath directory does not exists,backup will not be performed" 
+      fi
+      if [[ -n "$optSaveBuildEnv" && -n "$saveBuildEnvPath" && -d "$saveBuildEnvPath" ]] then
+        printDBG "saving build environmet to $saveBuildEnvPath$saveBuidEnvArcPath"
+        saveBuidEnvArcPath=`execCmd "rpm -q $rpmOptMacros ${rpmMacros[$_buildCycle]} --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' --specfile $specFile" '' '1'`
+        execCmd "mkdir -p $saveBuildEnvPath$saveBuidEnvArcPath"
+        execCmd "sudo tar  -Pcvzf $saveBuildEnvPath$saveBuidEnvArcPath/$saveBuidEnvArcPath.tar.gz $mockRoot"
+
+        cat <<-EOF > $saveBuildEnvPath$saveBuidEnvArcPath/extract
+
+        if [[ -d $mockRoot ]]; then
+          echo "$mockRoot already exists please remove the directory before extracting, ensure nobody is using it"
+          exit 1
+        fi
+        echo "extracting to $mockRoot"
+        echo "the sources directory tree is located at /builddir/build/BUILD in chroot"
+        sudo tar xvzf $saveBuildEnvPath$saveBuidEnvArcPath/$saveBuidEnvArcPath.tar.gz -C /
+EOF
+
+        execCmd "chmod +x $saveBuildEnvPath$saveBuidEnvArcPath/extract"
+
+        cat <<-EOF > $saveBuildEnvPath$saveBuidEnvArcPath/shell
+
+        if [[ ! -d $mockRoot ]]; then
+          echo "$mockRoot does not existsi, probably you have to run 'extract' script"
+          exit 1
+        fi
+        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} shell
+EOF
+
+        execCmd "chmod +x $saveBuildEnvPath$saveBuidEnvArcPath/shell"
+
+        cat <<-EOF >  $saveBuildEnvPath$saveBuidEnvArcPath/build
+
+        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot "rpmbuild -bc --short-circuit /builddir/build/SPECS/`basename $specFile`"
+        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot "rpmbuild -bi --short-circuit /builddir/build/SPECS/`basename $specFile`"
+        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot "rpmbuild -ba -D 'prep nil' -D 'build nil' -D 'install nil' /builddir/build/SPECS/`basename $specFile`"
+EOF
+
+        execCmd "chmod +x $saveBuildEnvPath$saveBuidEnvArcPath/build"
+
+        cat <<-EOF > $saveBuildEnvPath$saveBuidEnvArcPath/copy
+       
+        if [[ ! -d  $mockRoot/builddir/build/ ]]; then
+          echo "$mockRoot/builddir/build/ does not existsi, probably you have to run 'extract' script, perform build ..."
+          exit 1
+        fi 
+        dstHostDir="$rpmRepoHost:/u01/ks/repos/Incoming/`echo $modVer | cut -d. -f 1,2`
+        echo "copy will be performed to \$dstHostDir"
+        for p in \`find $mockRoot/builddir/build/ -name '*[h64].rpm'\`
+        do
+          scp \$p \$dstHostDir
+        done 
+EOF
+
+        execCmd "chmod +x $saveBuildEnvPath$saveBuidEnvArcPath/copy"
+      fi
     done
     packageList[1]=$_srcPkgFile
     for _pkgFile in `execCmd "ls $mockDir/results/*[h64].rpm" '' '1'`

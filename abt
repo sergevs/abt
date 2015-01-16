@@ -45,6 +45,7 @@ Options:
            [-A "module alias"]
            [-D "rpm macros"]
            [-C <additional configuration file> (overrides /etc/abt/abtrc and ~/.abtrc)
+           [-S <save build environment>]
 
 Default stages are:
 EOF
@@ -55,7 +56,7 @@ EOF
   exit 1
 }
 
-while getopts "a:b:c:d:e:hln:o:p:m:r:s:t:u:v:A:D:C:" opt; do
+while getopts "a:b:c:d:e:hln:o:p:m:r:s:t:u:v:A:D:C:S" opt; do
 	case $opt in 
 		a) rpmRel="$OPTARG" ;;
 		b) vcsRel="$OPTARG" ;;
@@ -75,6 +76,7 @@ while getopts "a:b:c:d:e:hln:o:p:m:r:s:t:u:v:A:D:C:" opt; do
 		A) moduleSetAlias $OPTARG ;;
 		D) rpmSetOptMacros $OPTARG ;;
 		C) addConfigFile="$OPTARG" ;;
+		S) optSaveBuildEnv=1 ;;
     m) case $OPTARG in
         0) rpmBuildMethod='rpmbuild';;
         1) rpmBuildMethod='mock';;

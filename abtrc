@@ -47,6 +47,9 @@ srpmRepoHome="/home/repos/default/"
 # default repository
 repo="test"
 
+# backup the build environment after build completed, to speed up a build in emergency case or for any investigation
+#saveBuildEnvPath="/u01/abt.archive/"
+
 # jira auth settings
 #jira_auth_string='os_username=USER&os_password=PASSWORD'
 #jira_site='https://jira.com'
