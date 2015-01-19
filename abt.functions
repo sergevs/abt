@@ -184,6 +184,7 @@ function rpmInitEnv {
     _m=", using specfile $specFile"
     [[ -f $specFile ]] || printERR "$specFile not found"
     pkgName=`execCmd "rpm -q --qf '%{NAME}\n' --specfile $specFile | head -1" '' '1'`
+    modBuild=`execCmd "rpm -q --qf '%{VERSION}\n' --specfile $specFile | head -1" '' '1'`
   fi
   printDBG "invoking ${0}[$stgNum], initializing ${rpmBuildMethod:-rpmbuild}$_m"
 
@@ -606,6 +607,7 @@ function rpmBuild {
    _srcPkgFile=`execCmd "ls $mockDir/results/*.src.rpm" '' '1'`
     for (( _buildCycle=1; _buildCycle <= $((${#rpmMacros}?${#rpmMacros}:1)); _buildCycle++ ))
     do
+      printDBG "build cycle: $_buildCycle, rpm macro(s): ${rpmMacros[$_buildCycle]:-not set}"
       [[ `echo "$mockOptions" | grep -o -- '--no-cleanup-after'` == '--no-cleanup-after' ]] &&  _mockCleanUp='--no-clean'
       _t=`execCmd "print -- ${rpmMacros[$_buildCycle]} | grep -o '__target \+[ix_3468]\+'" 'yes' '1'`
       _arch=${_t##__target }
@@ -622,8 +624,9 @@ function rpmBuild {
         [[ -n "$saveBuildEnvPath" && ! -d "$saveBuildEnvPath" ]] && printDBG "-S is set but $saveBuildEnvPath directory does not exists,backup will not be performed" 
       fi
       if [[ -n "$optSaveBuildEnv" && -n "$saveBuildEnvPath" && -d "$saveBuildEnvPath" ]] then
+        saveBuidEnvArcPath=`execCmd "rpm -q $rpmOptMacros ${rpmMacros[$_buildCycle]} --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' --specfile $specFile | head -1" '' '1'`
         printDBG "saving build environmet to $saveBuildEnvPath$saveBuidEnvArcPath"
-        saveBuidEnvArcPath=`execCmd "rpm -q $rpmOptMacros ${rpmMacros[$_buildCycle]} --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' --specfile $specFile" '' '1'`
+        execCmd "rm -rf $saveBuildEnvPath$saveBuidEnvArcPath"
         execCmd "mkdir -p $saveBuildEnvPath$saveBuidEnvArcPath"
         execCmd "sudo tar  -Pcvzf $saveBuildEnvPath$saveBuidEnvArcPath/$saveBuidEnvArcPath.tar.gz $mockRoot"
 
@@ -643,7 +646,7 @@ EOF
         cat <<-EOF > $saveBuildEnvPath$saveBuidEnvArcPath/shell
 
         if [[ ! -d $mockRoot ]]; then
-          echo "$mockRoot does not existsi, probably you have to run 'extract' script"
+          echo "$mockRoot does not exists, probably you have to run 'extract' script"
           exit 1
         fi
         mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} shell
@@ -653,9 +656,11 @@ EOF
 
         cat <<-EOF >  $saveBuildEnvPath$saveBuidEnvArcPath/build
 
-        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot "rpmbuild -bc --short-circuit /builddir/build/SPECS/`basename $specFile`"
-        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot "rpmbuild -bi --short-circuit /builddir/build/SPECS/`basename $specFile`"
-        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot "rpmbuild -ba -D 'prep nil' -D 'build nil' -D 'install nil' /builddir/build/SPECS/`basename $specFile`"
+        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot "rpmbuild -ba -D 'prep %{nil}' -D 'buildsubdir %{nil}'  -D '_builddir /builddir/build/BUILD/$pkgName-$modBuild' --nodeps /builddir/build/SPECS/`basename $specFile`"
+
+        echo "#################################################################################################"
+        echo "########## MAKE SURE YOU INCREASED *Version* or *Release* IN THE SPEC BEFORE THE BUILD ##########"
+        echo "#################################################################################################"
 EOF
 
         execCmd "chmod +x $saveBuildEnvPath$saveBuidEnvArcPath/build"
@@ -666,7 +671,7 @@ EOF
           echo "$mockRoot/builddir/build/ does not existsi, probably you have to run 'extract' script, perform build ..."
           exit 1
         fi 
-        dstHostDir="$rpmRepoHost:/u01/ks/repos/Incoming/`echo $modVer | cut -d. -f 1,2`
+        dstHostDir="$rpmRepoHost:/u01/ks/repos/Incoming/`echo $modBuild | cut -d. -f 1,2`
         echo "copy will be performed to \$dstHostDir"
         for p in \`find $mockRoot/builddir/build/ -name '*[h64].rpm'\`
         do
@@ -675,6 +680,13 @@ EOF
 EOF
 
         execCmd "chmod +x $saveBuildEnvPath$saveBuidEnvArcPath/copy"
+
+        cat <<-EOF > $saveBuildEnvPath$saveBuidEnvArcPath/clean
+
+        sudo rm -rf $mockRoot
+EOF
+        execCmd "chmod +x $saveBuildEnvPath$saveBuidEnvArcPath/clean"
+
       fi
     done
     packageList[1]=$_srcPkgFile
@@ -688,6 +700,7 @@ EOF
   else
     for (( _buildCycle=1; _buildCycle <= $((${#rpmMacros}?${#rpmMacros}:1)); _buildCycle++ ))
     do
+      printDBG "build cycle: $_buildCycle, rpm macro(s): ${rpmMacros[$_buildCycle]:-not set}"
       execCmd "rpmbuild -ba $rpmOptMacros  ${rpmMacros[$_buildCycle]} $rpmbuildOpt $specFile 2>&1"
       for _pkg in `execCmd "rpm -q $rpmOptMacros ${rpmMacros[$_buildCycle]} --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}.rpm\n' --specfile $specFile" '' '1'`
       do
