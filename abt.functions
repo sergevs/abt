@@ -636,9 +636,9 @@ function rpmBuild {
           echo "$mockRoot already exists please remove the directory before extracting, ensure nobody is using it"
           exit 1
         fi
-        echo "extracting to $mockRoot"
+        echo "extracting to $mockRoot ..."
+        sudo tar xzf $saveBuildEnvPath$saveBuidEnvArcPath/$saveBuidEnvArcPath.tar.gz -C /
         echo "the sources directory tree is located at /builddir/build/BUILD in chroot"
-        sudo tar xvzf $saveBuildEnvPath$saveBuidEnvArcPath/$saveBuidEnvArcPath.tar.gz -C /
 EOF
 
         execCmd "chmod +x $saveBuildEnvPath$saveBuidEnvArcPath/extract"
@@ -649,7 +649,7 @@ EOF
           echo "$mockRoot does not exists, probably you have to run 'extract' script"
           exit 1
         fi
-        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} shell
+        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --shell
 EOF
 
         execCmd "chmod +x $saveBuildEnvPath$saveBuidEnvArcPath/shell"
@@ -683,7 +683,7 @@ EOF
 
         cat <<-EOF > $saveBuildEnvPath$saveBuidEnvArcPath/clean
 
-        sudo rm -rf $mockRoot
+        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --clean
 EOF
         execCmd "chmod +x $saveBuildEnvPath$saveBuidEnvArcPath/clean"
 
