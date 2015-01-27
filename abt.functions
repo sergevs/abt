@@ -627,17 +627,23 @@ function rpmBuild {
         saveBuidEnvArcPath=`execCmd "rpm -q $rpmOptMacros ${rpmMacros[$_buildCycle]} --qf '%{NAME}-%{VERSION}-%{RELEASE}\n' --specfile $specFile | head -1" '' '1'`
         printDBG "saving build environmet to $saveBuildEnvPath$saveBuidEnvArcPath"
         execCmd "rm -rf $saveBuildEnvPath$saveBuidEnvArcPath"
-        execCmd "mkdir -p $saveBuildEnvPath$saveBuidEnvArcPath"
+        execCmd "mkdir -m775 -p $saveBuildEnvPath$saveBuidEnvArcPath"
+
+        execCmd "mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot \"find builddir -type d -exec chgrp mockbuild '{}' ';'\""
+        execCmd "mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot \"find builddir -type d -exec chmod g+rwx '{}' ';'\""
+        execCmd "mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot \"find builddir -type f -exec chmod g+rw '{}' ';'\""
+        execCmd "mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot \"yum clean all\""
+
         execCmd "sudo tar  -Pcvzf $saveBuildEnvPath$saveBuidEnvArcPath/$saveBuidEnvArcPath.tar.gz $mockRoot"
 
         cat <<-EOF > $saveBuildEnvPath$saveBuidEnvArcPath/extract
 
         if [[ -d $mockRoot ]]; then
-          echo "$mockRoot already exists please remove the directory before extracting, ensure nobody is using it"
+          echo "$mockRoot already exists please run *clean* script before extracting, ensure nobody is using the directory"
           exit 1
         fi
         echo "extracting to $mockRoot ..."
-        sudo tar xzf $saveBuildEnvPath$saveBuidEnvArcPath/$saveBuidEnvArcPath.tar.gz -C /
+        sudo tar xzf $saveBuildEnvPath$saveBuidEnvArcPath/$saveBuidEnvArcPath.tar.gz -C / 2>&1 | grep -v 'Removing leading'
         echo "the sources directory tree is located at /builddir/build/BUILD in chroot"
 EOF
 
@@ -656,10 +662,16 @@ EOF
 
         cat <<-EOF >  $saveBuildEnvPath$saveBuidEnvArcPath/build
 
-        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot "rpmbuild -ba -D 'prep %{nil}' -D 'buildsubdir %{nil}'  -D '_builddir /builddir/build/BUILD/$pkgName-$modBuild' --nodeps /builddir/build/SPECS/`basename $specFile`"
+        rm -rf $saveBuildEnvPath$saveBuidEnvArcPath/logs
+        mkdir -m775 $saveBuildEnvPath$saveBuidEnvArcPath/logs
+        _packager=\`rpm -E %packager\`
+        [[ \$_packager == '%packager' ]] && _packager=\$USER
 
+        mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile --resultdir=$saveBuildEnvPath$saveBuidEnvArcPath/logs -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot "rpmbuild -ba -D 'prep %{nil}' -D 'buildsubdir %{nil}'  -D '_builddir /builddir/build/BUILD/$pkgName-$modBuild' -D 'packager \$_packager' --nodeps /builddir/build/SPECS/`basename $specFile`"
+
+        echo "SPEC FILE is /builddir/build/SPECS/`basename $specFile`"
         echo "#################################################################################################"
-        echo "########## MAKE SURE YOU INCREASED *Version* or *Release* IN THE SPEC BEFORE THE BUILD ##########"
+        echo "################# MAKE SURE YOU INCREASED *Release* IN THE SPEC BEFORE THE BUILD ################"
         echo "#################################################################################################"
 EOF
 
@@ -671,7 +683,7 @@ EOF
           echo "$mockRoot/builddir/build/ does not existsi, probably you have to run 'extract' script, perform build ..."
           exit 1
         fi 
-        dstHostDir="$rpmRepoHost:/u01/ks/repos/Incoming/`echo $modBuild | cut -d. -f 1,2`
+        dstHostDir="$rpmRepoHost:/u01/ks/repos/Incoming/`echo $modBuild | cut -d. -f 1,2`"
         echo "copy will be performed to \$dstHostDir"
         for p in \`find $mockRoot/builddir/build/ -name '*[h64].rpm'\`
         do
