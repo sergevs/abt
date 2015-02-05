@@ -632,6 +632,7 @@ function rpmBuild {
         execCmd "mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot \"find builddir -type d -exec chgrp mockbuild '{}' ';'\""
         execCmd "mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot \"find builddir -type d -exec chmod g+rwx '{}' ';'\""
         execCmd "mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot \"find builddir -type f -exec chmod g+rw '{}' ';'\""
+        execCmd "mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot \"find /builddir/build/RPMS -type f -delete\""
         execCmd "mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot \"yum clean all\""
 
         execCmd "sudo tar  -Pcvzf $saveBuildEnvPath$saveBuidEnvArcPath/$saveBuidEnvArcPath.tar.gz $mockRoot"
@@ -680,13 +681,15 @@ EOF
         cat <<-EOF > $saveBuildEnvPath$saveBuidEnvArcPath/copy
        
         if [[ ! -d  $mockRoot/builddir/build/ ]]; then
-          echo "$mockRoot/builddir/build/ does not existsi, probably you have to run 'extract' script, perform build ..."
+          echo "$mockRoot/builddir/build/ does not exists, probably you have to run 'extract' script, perform build ..."
           exit 1
         fi 
         dstHostDir="$rpmRepoHost:/u01/ks/repos/Incoming/`echo $modBuild | cut -d. -f 1,2`"
         echo "copy will be performed to \$dstHostDir"
+        mkdir -p -m775 $saveBuildEnvPath$saveBuidEnvArcPath/RPMS
         for p in \`find $mockRoot/builddir/build/ -name '*[h64].rpm'\`
         do
+          cp \$p $saveBuildEnvPath$saveBuidEnvArcPath/RPMS
           scp \$p \$dstHostDir
         done 
 EOF
