@@ -640,11 +640,12 @@ function rpmBuild {
         cat <<-EOF > $saveBuildEnvPath$saveBuidEnvArcPath/extract
 
         if [[ -d $mockRoot ]]; then
-          echo "$mockRoot already exists please run *clean* script before extracting, ensure nobody is using the directory"
+          echo "$mockRoot already exists please run *clean* script before extracting, ensure nobody is using the directory" >&2
           exit 1
         fi
         echo "extracting to $mockRoot ..."
         sudo tar xzf $saveBuildEnvPath$saveBuidEnvArcPath/$saveBuidEnvArcPath.tar.gz -C / 2>&1 | grep -v 'Removing leading'
+        ln -sfT `find ${mockRoot}builddir/build/BUILD/ -maxdepth 1 | tail  -1` $saveBuildEnvPath$saveBuidEnvArcPath/source
         echo "the sources directory tree is located at /builddir/build/BUILD in chroot"
 EOF
 
@@ -699,6 +700,7 @@ EOF
         cat <<-EOF > $saveBuildEnvPath$saveBuidEnvArcPath/clean
 
         mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --clean
+        rm -f $saveBuildEnvPath$saveBuidEnvArcPath/source
 EOF
         execCmd "chmod +x $saveBuildEnvPath$saveBuidEnvArcPath/clean"
 
