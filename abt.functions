@@ -664,6 +664,18 @@ EOF
 
         cat <<-EOF >  $saveBuildEnvPath$saveBuidEnvArcPath/build
 
+        if [[ ! -d $mockRoot ]]; then
+          echo "$mockRoot does not exists, probably you have to run 'extract' script" >&2
+          exit 1
+        fi
+
+        if [[ -z "\$1"  ]]; then
+          echo "Release parameter is required" >&2
+          exit 1
+        fi
+
+        perl -pi -e "s/(^Release:)(.*?)(%.+)?$/\1 \$1\3/" ${mockRoot}builddir/build/SPECS/`basename $specFile`
+        
         rm -rf $saveBuildEnvPath$saveBuidEnvArcPath/logs
         mkdir -m775 $saveBuildEnvPath$saveBuidEnvArcPath/logs
         _packager=\`rpm -E %packager\`
@@ -671,10 +683,7 @@ EOF
 
         mock $mockDebugOpt $_mockCleanUp $mockOptions --configdir=$mockConfigDir -r $mockConfigFile --resultdir=$saveBuildEnvPath$saveBuidEnvArcPath/logs -D '%abt_pkgName $pkgName' $rpmOptMacros ${rpmMacros[$_buildCycle]} --chroot "rpmbuild -ba -D 'prep %{nil}' -D 'buildsubdir %{nil}'  -D '_builddir /builddir/build/BUILD/$pkgName-$modBuild' -D 'packager \$_packager' --nodeps /builddir/build/SPECS/`basename $specFile`"
 
-        echo "SPEC FILE is /builddir/build/SPECS/`basename $specFile`"
-        echo "#################################################################################################"
-        echo "################# MAKE SURE YOU INCREASED *Release* IN THE SPEC BEFORE THE BUILD ################"
-        echo "#################################################################################################"
+        echo "build performed using SPEC FILE at /builddir/build/SPECS/`basename $specFile`"
 EOF
 
         execCmd "chmod +x $saveBuildEnvPath$saveBuidEnvArcPath/build"
