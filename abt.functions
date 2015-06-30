@@ -76,6 +76,8 @@ TRAPZERR() {
 	if [[ $canContinue == 'yes' ]] then return 0; fi
 		
 	print "ERROR TRAPPED. see $logFile for detailed description" >&2
+  if [[ -n "$mockDir" && -f $mockDir/results/build.log ]] then print "additional information can be available in $mockDir/results/build.log" >&2; fi
+
   rm -f /tmp/abt.$$.lock
   sleep 1
 	kill $$
