@@ -615,7 +615,7 @@ function rpmDirPrepare {
   fi
 
   local _tar _spec
-  tar=`basename $targetDir`
+  _tar=`basename $targetDir`
   if [[ $(find $targetDir -maxdepth 1 \! -name RPM | wc -l ) -gt 1 ]] then
     execCmd "tar --exclude '.svn' --exclude 'CVS' --exclude '.git' -C $workDir -cvzf $rpmSrcDir/$_tar.tar.gz $_tar" 
   fi

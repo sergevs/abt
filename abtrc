@@ -1,6 +1,7 @@
 # stages definition
 #
 maxStages=100
+pkgType='rpm'
 
 stage[1]='svnInitEnv'
 stage[2]='rpmInitEnv'
