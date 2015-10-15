@@ -179,6 +179,12 @@ function debInstallDeps {
   popd
 }
 
+function rpmInstallDeps {
+  printDBG "invoking ${0}[$stgNum]"
+
+  execCmd "sudo yum-builddep -y $specFile"
+}
+
 function setMockConfigFile {
   printDBG "invoking ${0}" 2
   local _arch
