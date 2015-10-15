@@ -167,14 +167,14 @@ function debInitEnv {
 function debBuild {
   printDBG "invoking ${0}[$stgNum]"
 
-  pushd $targetDir/$vcsModule
+  pushd $targetDir/`basename $vcsModule`
   execCmd "dpkg-buildpackage"
 }
 
 function debInstallDeps {
   printDBG "invoking ${0}[$stgNum]"
 
-  pushd $targetDir/$vcsModule
+  pushd $targetDir/`basename $vcsModule`
   execCmd "sudo mk-build-deps -i -t 'apt-get --no-install-recommends -y'"
   popd
 }
