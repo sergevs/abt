@@ -5,7 +5,7 @@ Summary:    abt is advanced building system tool
 License:    BSD
 Group:	    Development/Tools
 BuildArch:  noarch
-Requires:   rpm-build subversion curl sed ed
+Requires:   rpm-build redhat-rpm-config subversion tar curl sed ed
 Source:	    %name-%version.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%version-buildroot
 
