@@ -211,7 +211,6 @@ function setMockConfigFile {
 }
 
 function rpmInitEnv {
-  printDBG "invoking ${0}[$stgNum]"
   local _m
   if [[ -z "$vcsModule" ]] then
     printDBG "svn module empty, assuming build from a spec file" 2
