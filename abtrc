@@ -29,7 +29,7 @@ mockOptions='--no-cleanup-after'
 mockConfigDir='/etc/abt/mock/'
 
 # default svn root path
-svnBase='https://github.com/sergevs/'
+svnBase='https://github.com/'
 
 # default work dir for all operations
 workDir="$HOME/tmp/"

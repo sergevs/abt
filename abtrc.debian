@@ -7,7 +7,7 @@ stage[1]='svnInitEnv'
 stage[2]='debInitEnv'
 stage[10]='svnPrepare'
 #stage[20]='logFromJira4'
-stage[40]='debInstallDeps'
+#stage[40]='debInstallDeps'
 stage[50]='debBuild'
 #stage[60]='svnCommitSpec'
 stage[90]='cleanUp'
@@ -25,7 +25,7 @@ functionsFile='/etc/abt/abt.functions'
 #mockConfigDir='/etc/abt/mock/'
 
 # default svn root path
-svnBase='https://github.com/sergevs/'
+svnBase='https://github.com/'
 
 # default work dir for all operations
 workDir="$HOME/tmp/"
