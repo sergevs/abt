@@ -1,0 +1,10 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_install:
+	dh_install
+	env|sort
+	echo "Additional install"
+	install $(CURDIR)/abtrc.debian $(CURDIR)/debian/abt/etc/abt/abtrc
