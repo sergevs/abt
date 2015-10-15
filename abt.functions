@@ -15,10 +15,15 @@ mockConfigDir=${mockConfigDir-'/etc/abt/mock'}
 mockConfigFile=''
 optMockConfigFile=''
 
-if [[ ! -d $workDir || $workDir == '' ]] then
-	print -- "ERR - workdir $workDir does not set or not exists" >&2
+if [[ $workDir == '' ]] then
+	print -- "ERR - workdir does not set" >&2
 	exit 1
   else
+    mkdir -p $workDir
+    if [[ $? -ne 0 ]]; then 
+	   print -- "ERR - failed to create workdir $workDir" >&2
+	   exit 1
+    fi
     workDir="$workDir:h/$workDir:t/"
     curPWD=`pwd`
     pushd $workDir
