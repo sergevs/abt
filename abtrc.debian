@@ -1,30 +1,28 @@
 # stages definition
 #
 maxStages=100
+pkgType='deb'
 
 stage[1]='svnInitEnv'
-stage[2]='rpmInitEnv'
+stage[2]='debInitEnv'
 stage[10]='svnPrepare'
 #stage[20]='logFromJira4'
-stage[30]='modifySpec'
-stage[40]='rpmDirPrepare'
-stage[50]='rpmBuild'
+stage[40]='debInstallDeps'
+stage[50]='debBuild'
 #stage[60]='svnCommitSpec'
-#stage[70]='rpmRepoCopy'
-#stage[80]='rpmUpdateRepo'
 stage[90]='cleanUp'
 
 # default functions file
 functionsFile='/etc/abt/abt.functions'
 
 # default method: rpmbuild or mock
-rpmBuildMethod='rpmbuild'
+#rpmBuildMethod='rpmbuild'
 
 # mock additional options
-mockOptions='--no-cleanup-after'
+#mockOptions='--no-cleanup-after'
 
 # default mock config directory
-mockConfigDir='/etc/abt/mock/'
+#mockConfigDir='/etc/abt/mock/'
 
 # default svn root path
 svnBase='https://github.com/sergevs/'
@@ -41,8 +39,9 @@ workDir="$HOME/tmp/"
 repoUseRelease='True'
 
 # default binary packages path
-rpmRepoHome="/home/repos/default/"
-srpmRepoHome="/home/repos/default/"
+#rpmRepoHome="/home/repos/default/"
+debRepoHome="/home/repos"
+#srpmRepoHome="/home/repos/default/"
 
 # default repository
 repo="test"

@@ -37,6 +37,7 @@ Options:
            [-o <build from spec file> ]
            [-m 0|1|<mock config> ]  0 - don't use mock, 1 - use mock, <mock config> - config file without arch and cfg extention
            [-p <rpmbuild  options> ]
+           [-P rpm|deb ] package type to build
            [-r <repository> ]
            [-s <skip stages> ] 
            [-t <config type> ]
@@ -56,7 +57,7 @@ EOF
   exit 1
 }
 
-while getopts "a:b:c:d:e:hln:o:p:m:r:s:t:u:v:A:D:C:S" opt; do
+while getopts "a:b:c:d:e:hln:o:p:m:r:s:t:u:v:A:D:C:P:S" opt; do
 	case $opt in 
 		a) rpmRel="$OPTARG" ;;
 		b) vcsRel="$OPTARG" ;;
@@ -76,6 +77,7 @@ while getopts "a:b:c:d:e:hln:o:p:m:r:s:t:u:v:A:D:C:S" opt; do
 		A) moduleSetAlias $OPTARG ;;
 		D) rpmSetOptMacros $OPTARG ;;
 		C) addConfigFile="$OPTARG" ;;
+		P) pkgType="$OPTARG" ;;
 		S) optSaveBuildEnv=1 ;;
     m) case $OPTARG in
         0) rpmBuildMethod='rpmbuild';;
@@ -108,7 +110,7 @@ vcsModule=$1
 
 # version verification
 [[ -z "$specFile" ]] && [[ -z "$modBuild" ]] && printERR "-v <product version> is mandatory"
-[[ -n "${modBuild##+([0-9]).+([0-9]).+([0-9]).+([0-9])}" ]] && printERR "Wrong version $modBuild, have to be in x.x.x.x form"
+#[[ -n "${modBuild##+([0-9]).+([0-9]).+([0-9]).+([0-9])}" ]] && printERR "Wrong version $modBuild, have to be in x.x.x.x form"
 modVer=${modBuild%[.-]+([0-9])}
 
 # debug level verification

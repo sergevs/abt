@@ -28,7 +28,6 @@ targetDir=''
 mockDir=''
 mockRoot=''
 abtFile='abt'
-specDir='RPM/SPECS'
 
 typeset -A vcsModules
 typeset -A vcsSubModules
@@ -109,49 +108,70 @@ function printDBG {
 }
 
 function svnInitEnv {
+  printDBG "invoking ${0}[$stgNum]"
+
   if [[ -z "$vcsModule" ]] then
     printDBG "svn module empty, assuming build from a spec file" 2
     return 0
-  else
-	  printDBG "invoking ${0}[$stgNum]"
   fi
 
-	local _i 
+  local _i
 # checking if an abt script is exists and  source it
-	if [[ -z "$vcsRel" ]] then 
-		vcsRel='tag'
-	else 
-		for _i in ${(k)svnDirs}
-		do
-			[[ "$_i" == $vcsRel ]] && _valid=1
-		done
-		[[ -z "$_valid" ]] && printERR "$vcsRel is not valid for branch definition"
-	fi
+  if [[ -z "$vcsRel" ]] then
+    vcsRel='tag'
+  else
+    for _i in ${(k)svnDirs}
+    do
+      [[ "$_i" == $vcsRel ]] && _valid=1
+    done
+    [[ -z "$_valid" ]] && printERR "$vcsRel is not valid for branch definition"
+  fi
 
-	svnList "" "$specDir/$abtFile" "1"
-	if [[ $? -eq 0 ]] then
-		_tmp_abt_file=`execCmd "mktemp -p ${workDir} abt.XXXXXXXXXX" '' '1'`
-		svnCat "" "$specDir/$abtFile" "" "1" > $_tmp_abt_file
-		source "$_tmp_abt_file" || printERR "error while sourcing $_tmp_abt_file"
-		execCmd "rm $_tmp_abt_file"
-	fi
-	if [[ -z "$specFile" || -z "$pkgName" ]] then
-		printERR "specFile $specFile or pkgName $pkgName is not defined"
-	fi
+  case $pkgType in
+    'deb')
+      specDir='debian' ;;
+    'rpm')
+      specDir='RPM/SPECS' ;;
+    *)
+      printERR "[$pkgType] package type is not supported" ;;
+  esac
+
+  _r=`svnList "" "$specDir/$abtFile"`
+  if [[ -n $_r ]] then
+    _tmp_abt_file=`execCmd "mktemp -p ${workDir} abt.XXXXXXXXXX" '' '1'`
+    svnCat "" "$specDir/$abtFile" "" "1" > $_tmp_abt_file
+    source "$_tmp_abt_file" || printERR "error while sourcing $_tmp_abt_file"
+    execCmd "rm $_tmp_abt_file"
+    if [[ $pkgType == 'rpm' && ( -z "$specFile" || -z "$pkgName" ) ]] then
+      printERR "specFile $specFile or pkgName $pkgName is not defined"
+    fi
+  fi
 }
 
-function checkEnvironment {
-  printDBG "invoking $0" 2
-  [[ `rpm -E %packager` == '%packager' ]] && printERR "please define %packager at $HOME/.rpmmacros"
-  execCmd "mkdir -vp  `rpm -E '%_tmppath %_rpmdir %_builddir %_sourcedir %_specdir %_srcrpmdir'`"
-  if [[ "$rpmBuildMethod" == 'mock' ]] then
-    _mockBin=`execCmd "which mock" 'yes' '1'`;
-    [[ -x "$_mockBin"  ]] || printERR "mock not found"
-    [[ `id | grep  -o '\((mock)\)'` != '(mock)' ]] && printERR "in the order to use mock, you have to be a member of mock group"
-    _mockVersion=`execCmd "$_mockBin --version" '' '1'`
-#    [[ -n "${_mockVersion##1.0*}" ]] && printERR "only mock 1.0.x is supported, you have $_mockVersion"
-    [[ `df|awk '/^tmpfs.+\/dev\/shm/{printf "%.0f\n", $4/1024/1024}'` -lt 1 ]] && printERR "/dev/shm have less than 1Gb, please clean and run again"
+function debInitEnv {
+  printDBG "invoking ${0}[$stgNum]"
+
+  if [[ -z "$pkgName" ]]; then
+    pkgName=`svnCat "" "$specDir/control" "" "1" | awk -F': ?' '/^Package/ {print $2}'`
+    vcsModules[$vcsModule]=$modBuild
   fi
+  targetDir="$workDir$pkgName-${modBuild:-targetDir}"
+  [[ -d $targetDir ]] && rm -rf $targetDir
+}
+
+function debBuild {
+  printDBG "invoking ${0}[$stgNum]"
+
+  pushd $targetDir/$vcsModule
+  execCmd "dpkg-buildpackage"
+}
+
+function debInstallDeps {
+  printDBG "invoking ${0}[$stgNum]"
+
+  pushd $targetDir/$vcsModule
+  execCmd "sudo mk-build-deps -i -t 'apt-get --no-install-recommends -y'"
+  popd
 }
 
 function setMockConfigFile {
@@ -180,8 +200,10 @@ function setMockConfigFile {
 }
 
 function rpmInitEnv {
+  printDBG "invoking ${0}[$stgNum]"
   local _m
   if [[ -z "$vcsModule" ]] then
+    printDBG "svn module empty, assuming build from a spec file" 2
     [[ $specFile == ${specFile#/} ]] && [[ $specFile == ${specFile#\~} ]] &&  specFile="${curPWD}/${specFile}"
     _m=", using specfile $specFile"
     [[ -f $specFile ]] || printERR "$specFile not found"
@@ -190,7 +212,17 @@ function rpmInitEnv {
   fi
   printDBG "invoking ${0}[$stgNum], initializing ${rpmBuildMethod:-rpmbuild}$_m"
 
-  checkEnvironment
+#  checkEnvironment
+  [[ `rpm -E %packager` == '%packager' ]] && printERR "please define %packager at $HOME/.rpmmacros"
+  execCmd "mkdir -vp  `rpm -E '%_tmppath %_rpmdir %_builddir %_sourcedir %_specdir %_srcrpmdir'`"
+  if [[ "$rpmBuildMethod" == 'mock' ]] then
+    _mockBin=`execCmd "which mock" 'yes' '1'`;
+    [[ -x "$_mockBin"  ]] || printERR "mock not found"
+    [[ `id | grep  -o '\((mock)\)'` != '(mock)' ]] && printERR "in the order to use mock, you have to be a member of mock group"
+    _mockVersion=`execCmd "$_mockBin --version" '' '1'`
+#    [[ -n "${_mockVersion##1.0*}" ]] && printERR "only mock 1.0.x is supported, you have $_mockVersion"
+    [[ `df|awk '/^tmpfs.+\/dev\/shm/{printf "%.0f\n", $4/1024/1024}'` -lt 1 ]] && printERR "/dev/shm have less than 1Gb, please clean and run again"
+  fi
 
 	rpmSpecDir=`rpm -E %_specdir`
 	rpmSrcDir=`rpm -E %_sourcedir`
@@ -222,10 +254,6 @@ function rpmInitEnv {
       execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --init 2>&1"
   fi
   
-  if [[ -z "$vcsModule" ]] then
-    printDBG "svn module empty, assuming build from a spec file" 2
-    return 0
-  fi
   targetDir="$workDir$pkgName-${modBuild:-targetDir}"
   [[ -d $targetDir ]] && rm -rf $targetDir
 	# magic '/' in specFile definition
@@ -238,27 +266,27 @@ function rpmInitEnv {
 }
 
 function execCmd {
-	local _cmd _nonFail _reqOut _host _r _ifs
-	_cmd=$1				# command
-	_nonFail=$2		# if 'yes', the failed status of executed program considered as expected behavour
-	_reqOut=$3		# if non zero, program have to return its out
-	_host=$4			# if non zero, program executed on remote host
-  _r=''
+  local _cmd _nonFail _reqOut _host _ifs
+  _cmd=$1       # command
+  _nonFail=$2   # if 'yes', the failed status of executed program considered as expected behavour
+  _reqOut=$3    # if non zero, program have to return its out
+  _host=$4      # if non zero, program executed on remote host
 	
-	[[ -n "$_host" && "$_host" != 'local' ]] && _cmd="ssh $_host $_cmd"
-	printDBG "invoking execCmd $_cmd _nonFail=$_nonFail _reqOut=$_reqOut _host=$_host" 2
-	canContinue=$_nonFail
+  [[ -n "$_host" && "$_host" != 'local' ]] && _cmd="ssh $_host $_cmd"
+  printDBG "invoking execCmd $_cmd _nonFail=$_nonFail _reqOut=$_reqOut _host=$_host" 2
 
-	eval "$_cmd" | { 
+  canContinue=$_nonFail
+
+  eval "$_cmd" | { 
     _ifs=$IFS
     IFS=`print "\n"`
-		while read -r _l ; do 
-			printDBG "CMDOUT $_l" 3
-			if [[ -n "$_reqOut" ]] then print -r "$_l"; fi
-		done 
-		IFS=$_ifs
-	}
-	canContinue=no
+    while read -r _l ; do 
+      printDBG "CMDOUT $_l" 3
+      if [[ -n "$_reqOut" ]] then print -r "$_l"; fi
+    done 
+    IFS=$_ifs
+  }
+  canContinue=no
 }
 
 function copyCmd {
@@ -334,9 +362,9 @@ function svnList {
 
 	_module=`moduleGetAlias $_module $_svnRev`
 	if [[ "$_svnRev" = "local" ]] then
-		execCmd "ls $_module/$_path"
+		execCmd "ls $_module/$_path" 'yes' '1'
 	else
-		execCmd "svn list $_svnRevOpt $svnBase$_module/$_svnRev$_path"
+		execCmd "svn list $_svnRevOpt $svnBase$_module/$_svnRev$_path" 'yes' '1'
 	fi
 }
 
@@ -579,23 +607,24 @@ function svnCommitSpec {
 }
 
 function rpmDirPrepare {
+  printDBG "invoking ${0}[$stgNum]"
+
   if [[ -z "$vcsModule" ]] then
     printDBG "svn module empty, assuming build from a spec file" 2
     return 0
-  else
-	  printDBG "invoking ${0}[$stgNum]"
   fi
 
-	local _tar _spec
-	_tar=`basename $targetDir`
-	if [[ $(find $targetDir -maxdepth 1 \! -name RPM | wc -l ) -gt 1 ]] then
-		execCmd "tar --exclude '.svn' --exclude 'CVS' --exclude '.git' -C $workDir -cvzf $rpmSrcDir/$_tar.tar.gz $_tar" 
-	fi
-	[[ -d  $workDir$_tar/RPM/SOURCES ]] && execCmd "find $workDir$_tar/RPM/SOURCES/ -maxdepth 1 -type f -exec cp '{}' $rpmSrcDir ';'"
-	#backup spec file
-	_spec=`basename $specFile`
-	[[ -f "$rpmSpecDir/$_spec" ]] && execCmd "cp $rpmSpecDir/$_spec $rpmSpecDir/$_spec.bak"
-	execCmd "cp $specFile $rpmSpecDir"
+  local _tar _spec
+  tar=`basename $targetDir`
+  if [[ $(find $targetDir -maxdepth 1 \! -name RPM | wc -l ) -gt 1 ]] then
+    execCmd "tar --exclude '.svn' --exclude 'CVS' --exclude '.git' -C $workDir -cvzf $rpmSrcDir/$_tar.tar.gz $_tar" 
+  fi
+
+  [[ -d  $workDir$_tar/RPM/SOURCES ]] && execCmd "find $workDir$_tar/RPM/SOURCES/ -maxdepth 1 -type f -exec cp '{}' $rpmSrcDir ';'"
+  #backup spec file
+  _spec=`basename $specFile`
+  [[ -f "$rpmSpecDir/$_spec" ]] && execCmd "cp $rpmSpecDir/$_spec $rpmSpecDir/$_spec.bak"
+  execCmd "cp $specFile $rpmSpecDir"
 }
 
 function rpmBuild {
@@ -774,6 +803,13 @@ function rpmRepoCopy {
 	done
 }
 
+function debRepoCopy {
+  printDBG "invoking ${0}[$stgNum]"
+
+  execCmd "mkdir -p $debRepoHome/$repo" '' '' "$rpmRepoHost" 
+  copyCmd "$targetDir/*.deb" "$debRepoHome/$repo" "$debRepoHost"
+}
+
 function rpmUpdateRepo {
 	printDBG "invoking ${0}[$stgNum]"
 # yum
@@ -784,27 +820,37 @@ function rpmUpdateRepo {
 #  execCmd "genbasedir --partial $rpmRepoHome $repo" '' '' "$rpmRepoHost"
 }
 
-function cleanUp {
-	printDBG "invoking ${0}[$stgNum]"
-	local _i
+function debUpdateRepo {
+  printDBG "invoking ${0}[$stgNum]"
+  execCmd "cd $debRepoHome/$repo; dpkg-scanpackages . | gzip -9c > Packages.gz" "$debRepoHost"
+}
 
-	for _i in "${packageList[@]}"
-	do
-		execCmd "rm $_i"
-	done 
-	[[ -n "$vcsModule" ]] && execCmd "rpmbuild --nodeps --clean --rmsource $rpmOptMacros ${rpmMacros[1]} $specFile 2>&1" || printDBG "skipping rpm sources clean" 2
-	execCmd "rm -rf $targetDir"
+function rpmCleanUp {
+  printDBG "invoking ${0}" 2
+  local _i
+
+  for _i in "${packageList[@]}"
+  do
+    execCmd "rm $_i"
+  done 
+  [[ -n "$vcsModule" ]] && execCmd "rpmbuild --nodeps --clean --rmsource $rpmOptMacros ${rpmMacros[1]} $specFile 2>&1" || printDBG "skipping rpm sources clean" 2
   if [[ "$rpmBuildMethod" == 'mock' ]] then
     execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --scrub=chroot"
     execCmd "rm -rf $mockDir"
   fi
-	execCmd "rm -f $logFile"
+}
+
+function cleanUp {
+  printDBG "invoking ${0}[$stgNum]"
+
+  [[ $pkgType == "rpm" ]] && rpmCleanUp 
+  execCmd "rm -rf $targetDir"
+  execCmd "rm -f $logFile"
   if [[ -d `dirs -p | sed -n '2p'` ]] then
     popd
   else
     cd 
   fi
-
 }
 
 function rpmRepoCheck {
