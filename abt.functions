@@ -46,6 +46,10 @@ typeset -A vcsModuleAlias
 #added to perform multibuild of the same rpm spec with different features
 typeset -a rpmMacros
 
+#rpm is default
+specDir='RPM/SPECS'
+pkgType='rpm'
+
 #2 variables below are defined in rpmInitEnv
 rpmSpecDir=''
 rpmSrcDir=''
