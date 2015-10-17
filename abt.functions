@@ -47,8 +47,7 @@ typeset -A vcsModuleAlias
 typeset -a rpmMacros
 
 #rpm is default
-specDir='RPM/SPECS'
-pkgType='rpm'
+[[ -z "$pkgType" ]] && pkgType='rpm'
 
 #2 variables below are defined in rpmInitEnv
 rpmSpecDir=''
