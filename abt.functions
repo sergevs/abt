@@ -185,7 +185,12 @@ function debInstallDeps {
 function rpmInstallDeps {
   printDBG "invoking ${0}[$stgNum]"
 
-  execCmd "sudo yum-builddep -y $specFile"
+  for (( _buildCycle=1; _buildCycle <= $((${#rpmMacros}?${#rpmMacros}:1)); _buildCycle++ ))
+  do
+    printDBG "deps cycle: $_buildCycle, rpm macro(s): ${rpmMacros[$_buildCycle]:-not set}"
+    _srcPkg=`execCmd "rpmbuild --nodeps ${rpmMacros[$_buildCycle]} -bs $specFile  | cut -d' ' -f2" "" "1"`
+    execCmd "sudo yum-builddep -y $_srcPkg"
+  done
 }
 
 function setMockConfigFile {
