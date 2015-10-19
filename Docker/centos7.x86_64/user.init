@@ -48,4 +48,4 @@ if [[ -n "$WANTROOT" ]]; then
   exit 
 fi
 
-sudo -Hi -u $USER  abt $@
+sudo -Hi -u $USER SSH_AUTH_SOCK=$SSH_AUTH_SOCK abt $@
