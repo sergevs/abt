@@ -12,7 +12,7 @@ stage[40]='rpmDirPrepare'
 stage[45]='rpmInstallDeps'
 stage[50]='rpmBuild'
 #stage[60]='svnCommitSpec'
-#stage[70]='rpmRepoCopy'
+stage[70]='rpmRepoCopy'
 #stage[80]='rpmUpdateRepo'
 stage[90]='cleanUp'
 
@@ -43,8 +43,8 @@ workDir="$HOME/tmp/"
 repoUseRelease='True'
 
 # default binary packages path
-rpmRepoHome="/home/repos/default/"
-srpmRepoHome="/home/repos/default/"
+rpmRepoHome="$HOME/repos/default/"
+srpmRepoHome="$HOME/repos/default/"
 
 # default repository
 repo="test"
