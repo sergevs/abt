@@ -43,8 +43,12 @@ workDir="$HOME/tmp/"
 repoUseRelease='True'
 
 # default binary packages path
-rpmRepoHome="/home/repos/default/"
-srpmRepoHome="/home/repos/default/"
+# debRepoHome="$HOME/repos"
+rpmRepoHome="$HOME/repos/default/"
+srpmRepoHome="$HOME/repos/default/"
+
+#group for repository
+#repoGroup='rpm'
 
 # default repository
 repo="test"
