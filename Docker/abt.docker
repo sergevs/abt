@@ -4,6 +4,7 @@ mkdir -p $HOME/$DUSER_HOME
 IMAGE=$1
 shift
 DHOST=`basename $IMAGE`
+DHOST=`echo $DHOST| sed -e 's/_/./g'`
 
 echo
 echo "### Docker home is $HOME/$DUSER_HOME ###"
