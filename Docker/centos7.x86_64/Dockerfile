@@ -6,6 +6,7 @@ RUN yum -y install https://github.com/sergevs/abt/releases/download/3.0.1-rc/abt
     yum clean all && \
     echo "%wheel  ALL=(ALL)       NOPASSWD: ALL" >> /etc/sudoers
 
+RUN sed -i -e 's/el7.centos/el7/' /etc/rpm/macros.dist
 COPY .rpmmacros /root/
 COPY abtrc /etc/abt/
 COPY user.init /usr/bin/
