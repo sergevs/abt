@@ -810,11 +810,12 @@ function rpmRepoCopy {
   fi
 
   _err=`execCmd "test -d $srpmRepoHome/SRPMS.$repo && echo 0 || echo 1" 'yes' '1' "$rpmRepoHost"`
-  [[ $_err != '0' ]] && execCmd "install -m 775 -g rpm -d $srpmRepoHome/SRPMS.$repo" '' '' "$rpmRepoHost"
+  [[ -n "$repoGroup" ]] && _group="-g $repoGroup"
+  [[ $_err != '0' ]] && execCmd "install -m 775 $_group -d $srpmRepoHome/SRPMS.$repo" '' '' "$rpmRepoHost"
   copyCmd "${packageList[1]}" "$srpmRepoHome/SRPMS.$repo" "$rpmRepoHost"
 
   _err=`execCmd "test -d $rpmRepoHome/RPMS.$repo && echo 0 || echo 1" 'yes' '1' "$rpmRepoHost"`
-  [[ $_err != '0' ]] && execCmd "install -m 775 -g rpm -d $rpmRepoHome/RPMS.$repo" '' '' "$rpmRepoHost"
+  [[ $_err != '0' ]] && execCmd "install -m 775 $_group -d $rpmRepoHome/RPMS.$repo" '' '' "$rpmRepoHost"
   for (( _i=2; _i<=${#packageList[@]}; _i+=1 ))
   do
     copyCmd "${packageList[$_i]}" "$rpmRepoHome/RPMS.$repo" "$rpmRepoHost"
@@ -824,7 +825,8 @@ function rpmRepoCopy {
 function debRepoCopy {
   printDBG "invoking ${0}[$stgNum]"
 
-  execCmd "mkdir -p $debRepoHome/$repo" '' '' "$rpmRepoHost" 
+  [[ -n "$repoGroup" ]] && _group="-g $repoGroup"
+  execCmd "install -m 775 $_group -d $debRepoHome/$repo" '' '' "$rpmRepoHost"
   copyCmd "$targetDir/*.deb" "$debRepoHome/$repo" "$debRepoHost"
 }
 
@@ -840,11 +842,13 @@ function rpmUpdateRepo {
 
 function debUpdateRepo {
   printDBG "invoking ${0}[$stgNum]"
+
   execCmd "cd $debRepoHome/$repo; dpkg-scanpackages . | gzip -9c > Packages.gz" "$debRepoHost"
 }
 
 function rpmCleanUp {
   printDBG "invoking ${0}" 2
+
   local _i
 
   for _i in "${packageList[@]}"
