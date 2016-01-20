@@ -14,7 +14,7 @@ stage[50]='rpmBuild'
 #stage[60]='svnCommitSpec'
 #stage[70]='rpmRepoCopy'
 #stage[80]='rpmUpdateRepo'
-stage[90]='cleanUp'
+#stage[90]='cleanUp'
 
 # default functions file
 functionsFile='/etc/abt/abt.functions'
