@@ -271,6 +271,11 @@ function rpmInitEnv {
       execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --scrub=chroot"
       execCmd "mock $mockDebugOpt --configdir=$mockConfigDir -r $mockConfigFile -D '%abt_pkgName $pkgName' $rpmOptMacros --init 2>&1"
   fi
+
+  if [[ -z "$vcsModule" ]] then
+    printDBG "svn module empty, assuming build from a spec file" 2
+    return 0
+  fi
   
   targetDir="$workDir$pkgName-${modBuild:-targetDir}"
   [[ -d $targetDir ]] && rm -rf $targetDir
