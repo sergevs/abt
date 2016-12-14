@@ -2,7 +2,7 @@ FROM debian:8
 MAINTAINER Serge at abrikus@gmail.com
 
 RUN apt-get update && \
-    apt-get install --no-install-recommends ca-certificates sudo equivs gawk nfs-common openssh-client -y && \
+    apt-get install --no-install-recommends wget ca-certificates sudo equivs gawk nfs-common openssh-client -y && \
     wget https://github.com/sergevs/abt/releases/download/3.0.1/abt_3.0.1_all.deb && \
     dpkg -i abt_3.0.1_all.deb ; \
     apt-get install --no-install-recommends -fy && \
