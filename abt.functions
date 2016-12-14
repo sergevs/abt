@@ -531,15 +531,21 @@ function modifySpec {
 	if [[ `execCmd "rpm -q $rpmOptMacros ${rpmMacros[1]} --changelog --specfile $specFile | awk '/^\*.+'"$verFromStamp"'$/ { print 1; exit }'" '' '1'` == '1' ]] then
 		printERR "changelog entry with $verFromStamp alredy exists"
 	fi
+	#check a changelog exists and %changelog is present and adding entries
+	if [[ ${#changeLog} -gt 1 ]] then
+	  _cl=`execCmd "grep ^%changelog $specFile" "yes" '1'`
+	  [[ -z "$_cl" ]] && execCmd 'echo -e "\n%changelog" >> $specFile' "" ""
+
 	#piping ed commands
-	{
-		print -- '/^%changelog/a'
-		for _i in "${changeLog[@]}"
-		do
-			print -- "${_i}"
-		done
-		print "\n.\nw\nq\n"
-	} | ed -s $specFile
+	  {
+	    print -- '/^%changelog/a'
+	    for _i in "${changeLog[@]}"
+	    do
+	      print -- "${_i}"
+	    done
+	    print "\n.\nw\nq\n"
+	  } | ed -s $specFile
+	fi 
 }
 
 function svnPrepare {
