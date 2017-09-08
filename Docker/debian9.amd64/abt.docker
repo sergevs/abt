@@ -1,0 +1,2 @@
+
+docker run --privileged --rm -it -e USER=$USER -e UID=$UID -e UHOME=$HOME -e CHOSTNAME=$HOSTNAME.docker -v $HOME:$HOME sergevs42/debian7.amd64-abt $@

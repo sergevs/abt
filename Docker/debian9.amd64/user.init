@@ -1,0 +1,51 @@
+#!/bin/bash
+
+echo
+echo "### user init ###"
+echo
+
+if [[ -n "$UID" && -n "$USER" && -n "$UHOME" ]]; then
+  useradd -M -u $UID -g users -G sudo $USER -d $UHOME -s /bin/bash
+  _m=`awk  "{if (\\$2 == \"$UHOME\") {print \\$2}}" /proc/mounts`
+  if [[ -z "$_m" ]]; then
+    if [[ -z "$NFSHOMEIP" ]]; then
+      echo "WARNING: $UHOME is not mounted, activating root shell"
+      /bin/bash -i
+      exit
+    else
+      rpcbind
+      rpc.statd
+      mkdir -p $UHOME
+      mount $NFSHOMEIP:$UHOME $UHOME
+      if [[ $? -ne 0 ]]; then
+        echo "WARNING: failed to mount $NFSHOMEIP:$UHOME to $UHOME, activating root shell"
+        /bin/bash -i
+        exit
+      fi
+    fi
+  fi
+else
+  echo "WARNING: UID or USER or UHOME environment variables are not defined, your user account is not created, activating root shell"
+  /bin/bash -i
+  exit
+fi
+
+if [[ -n "$CHOSTNAME" ]]; then
+  echo "INFO: setting up container hostname to $CHOSTNAME"
+  hostname $CHOSTNAME
+  if [[ $? -ne 0 ]]; then
+    echo "WARNING: hostname setup failed, you have to run docker with --privileged option"
+  else
+    _ip=`ip addr | awk '/^.+inet.*eth0/{print gensub("/[[:digit:]]+","","g",$2)}'`
+    echo "$_ip $CHOSTNAME" >> /etc/hosts
+  fi
+fi
+
+if [[ -n "$WANTROOT" ]]; then
+  echo "INFO: WANTROOT environment variable is defined,  your user account $USER is available, activating root shell"
+  echo "arguments was $@"
+  /bin/bash -i
+  exit 
+fi
+
+sudo -Hi -u $USER SSH_AUTH_SOCK=$SSH_AUTH_SOCK abt $@
