@@ -5,6 +5,11 @@ set -o shwordsplit
 set -o errexit
 set -o dotglob
 
+modBuild=''
+modVer=''
+specFile=''
+
+
 [[ -f /etc/abt/abtrc ]] && . /etc/abt/abtrc
 [[ -f ~/.abtrc ]] && . ~/.abtrc
 
@@ -23,7 +28,7 @@ fi
 
 function printUsage {
   cat <<EOF
-Usage: abt -v <version> [OPTIONS] <svn module path>
+Usage: abt -v <version> [OPTIONS] <vcs module path>
 
 Options:
            [-a <release> ]
@@ -33,7 +38,7 @@ Options:
            [-e <changelog entry> ]
            [-h ]
            [-l <enable logging> ]
-           [-n <svn revision> ]
+           [-n <vcs revision> ]
            [-o <build from spec file> ]
            [-m 0|1|<mock config> ]  0 - don't use mock, 1 - use mock, <mock config> - config file without arch and cfg extention
            [-p <rpmbuild  options> ]
@@ -41,12 +46,13 @@ Options:
            [-r <repository> ]
            [-s <skip stages> ] 
            [-t <config type> ]
-           [-u <svn base URL> ]
+           [-u <vcs base URL> ]
            [-v <version>]
            [-A "module alias"]
            [-D "rpm macros"]
-           [-C <additional configuration file> (overrides /etc/abt/abtrc and ~/.abtrc)
+           [-C <full path to additional configuration file> (overrides /etc/abt/abtrc and ~/.abtrc)
            [-S <save build environment>]
+           [-V [svn|git] version control systemt]
 
 Default stages are:
 EOF
@@ -57,7 +63,7 @@ EOF
   exit 1
 }
 
-while getopts "a:b:c:d:e:hln:o:p:m:r:s:t:u:v:A:D:C:P:S" opt; do
+while getopts "C:a:b:c:d:e:ln:o:p:m:r:s:t:u:v:A:D:P:SV:h" opt; do
 	case $opt in 
 		a) rpmRel="$OPTARG" ;;
 		b) vcsRel="$OPTARG" ;;
@@ -73,12 +79,26 @@ while getopts "a:b:c:d:e:hln:o:p:m:r:s:t:u:v:A:D:C:P:S" opt; do
 		s) skipStages="$OPTARG" ;;
 		t) configType="$OPTARG";;
 		v) modBuild="$OPTARG" ;;
-		u) svnBase="$OPTARG" ;;
+		u) vcsBase="$OPTARG" ;;
 		A) moduleSetAlias $OPTARG ;;
 		D) rpmSetOptMacros $OPTARG ;;
-		C) addConfigFile="$OPTARG" ;;
+		C) addConfigFile="$OPTARG"
+        if [[ -n "$addConfigFile" ]]; then
+          if [[ -r "$addConfigFile" ]]; then
+            . $addConfigFile 
+            if [[ -f "$functionsFile" ]]; then
+            . "$functionsFile"
+            fi
+          else 
+            printERR "Additional config file <$addConfigFile> specified but not readable"
+          fi
+        fi
+       ;;
 		P) pkgType="$OPTARG" ;;
 		S) optSaveBuildEnv=1 ;;
+		V) vcsSystem="$OPTARG"
+       [[ "$vcsSystem" != 'git' ]] && [[ "$vcsSystem" != 'svn' ]] && printERR "-V option only accepts 'svn' or 'git'" ||:
+       ;;
     m) case $OPTARG in
         0) rpmBuildMethod='rpmbuild';;
         1) rpmBuildMethod='mock';;
@@ -91,21 +111,13 @@ while getopts "a:b:c:d:e:hln:o:p:m:r:s:t:u:v:A:D:C:P:S" opt; do
 	esac
 done
 
-if [[ -n "$addConfigFile" ]]; then
-  if [[ -r "$addConfigFile" ]]; then
-    . $addConfigFile 
-  else 
-    printERR "Additional config file <$addConfigFile> specified but not readable"
-  fi
-fi
-
 shift $(($OPTIND - 1))
 
 vcsModule=$1
 
 # vcs Module verification
-[[ -z "$vcsModule" ]] && [[ -z "$specFile" ]] && printERR "svn module or specfile[-o] option is not specified, see abt -h"
-[[ -n "$vcsModule" ]] && [[ -n "$specFile" ]] && printERR "svn module conflicts with specfile[-o] option, see abt -h"
+[[ -z "$vcsModule" ]] && [[ -z "$specFile" ]] && printERR "vcs module or specfile[-o] option is not specified, see abt -h"
+[[ -n "$vcsModule" ]] && [[ -n "$specFile" ]] && printERR "vcs module conflicts with specfile[-o] option, see abt -h"
 [[ -n "$specFile" ]] && [[ -n "$modBuild" ]] && printERR "verion[-v] option conflicts with specfile[-o], see abt -h"
 
 # version verification
@@ -116,8 +128,10 @@ modVer=${modBuild%[.-]+([0-9])}
 # debug level verification
 [[ -n "${isDebug##+([0-9])}" ]] && printERR "debug level have to be a number"
 
-# parse skipStages option and undefine stages
 printDBG "started $0 `date +'%H:%M:%S %d.%m.%Y'`" 1
+startTime=`date +%s`
+
+# parse skipStages option and undefine stages
 if [[ -n "$skipStages" ]] then
 	for _skip in ${(z)skipStages}
 	do
@@ -144,6 +158,8 @@ do
 	[[ -n "${stage[$stgNum]}" ]] && [[ "${stage[$stgNum]}" != 'none' ]] && ${stage[$stgNum]}
 done
 
-printDBG "finished $0 `date +'%H:%M:%S %d.%m.%Y'`" 1
+finishTime=`date +%s`
+
+printDBG "finished $0 `date +'%H:%M:%S %d.%m.%Y'`, elapsed `date -d \"0 $finishTime sec - $startTime sec\" +'%H:%M:%S'`" 1
 #it's required to explicity define success return value
 exit 0

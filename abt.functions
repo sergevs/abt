@@ -53,10 +53,10 @@ typeset -a rpmMacros
 rpmSpecDir=''
 rpmSrcDir=''
 
-modVer=''
-modBuild=''
+#modVer=''
+#modBuild=''
+#specFile=''
 rpmRel=''
-specFile=''
 isDebug=1
 isLog=0
 
@@ -115,6 +115,127 @@ function printDBG {
 	fi
 }
 
+# checkout the parent module and initialize the environment
+# should not be called from stage
+function vcsInitEnv {
+  printDBG "invoking ${0}[$stgNum]" 2
+
+  if [[ -z "$vcsModule" ]] then
+    printDBG "vcs module is empty, assuming build from a spec file" 2
+    return 0
+  fi
+
+  local _i
+# checking if an abt script is exists and  source it
+  if [[ -z "$vcsRel" ]] then
+    vcsRel='tag'
+  else
+    for _i in ${(k)svnDirs}
+    do
+      [[ "$_i" == $vcsRel ]] && _valid=1
+    done
+    [[ -z "$_valid" ]] && printERR "$vcsRel is not valid for branch definition"
+  fi
+
+  case $pkgType in
+    'deb')
+      specDir='debian' ;;
+    'rpm')
+      specDir='RPM/SPECS' ;;
+    *)
+      printERR "[$pkgType] package type is not supported" ;;
+  esac
+  _tmp_module_dir=`execCmd "mktemp -p ${workDir} abt.XXXXXXXXXX" '' '1'`
+  execCmd "rm -rf $_tmp_module_dir"
+  execCmd "mkdir -p $_tmp_module_dir"
+  vcsCheckout "$vcsModule" "" "$_tmp_module_dir" "" "" "" ""
+  pushd $_tmp_module_dir
+  if [[ -f "$_tmp_module_dir/$specDir/$abtFile" ]] then
+    source "$_tmp_module_dir/$specDir/$abtFile"
+  fi
+  if [[ -f "$_tmp_module_dir/$specDir/control" ]] then
+    pkgName=`execCmd "basename $vcsModule" '' '1'`
+  fi
+  popd
+  # _module _path _dst _nonFail _reqOut _svnRev _svnRevOpt
+  if [[ $pkgType == 'rpm' && ( -z "$specFile" || -z "$pkgName" ) ]] then
+    printERR "specFile $specFile or pkgName $pkgName is not defined"
+  fi
+  targetDir="$workDir$pkgName-${modBuild:-targetDir}"
+  [[ -d $targetDir ]] && rm -rf $targetDir
+  if [[ -z "$distCheckout" ]] then
+    execCmd "mkdir -p $targetDir"
+    execCmd "mv $_tmp_module_dir $targetDir/`basename $vcsModule`"
+  else
+    execCmd "mv $_tmp_module_dir $targetDir"
+  fi
+}
+
+# prepare directory tree with all modules
+function vcsPrepare {
+  printDBG "invoking ${0}[$stgNum]"
+
+  vcsInitEnv
+
+  if [[ -z "$vcsModule" ]] then
+    printDBG "svn module empty, assuming build from a spec file" 2
+    return 0
+  else
+	  printDBG "invoking ${0}[$stgNum]"
+  fi
+
+	local _vcsModule _svnRev _targetDir _l _oneLine
+
+	for _vcsModule in ${(k)vcsModules}
+	do
+    [[ $_vcsModule == $vcsModule ]]  && continue
+		_oneLine=''
+		_vcsRev=`vcsGetRev ${vcsModules[$_vcsModule]}`
+		if [[ -n "${vcsModules[$_vcsModule]}" ]] then
+			if [[ -n "${vcsSubModules[$_vcsModule]}" ]] then
+				for _subModule in ${vcsSubModules[$_vcsModule]}
+				do
+				# 'magic' '/' in subModule definition. should be considered as a 'long patch'
+				# if a subModule definition contain '/' at the end, 
+				# the target path will be the same as listed in submodule, not only the last dir
+					if [[ -z ${_subModule##*/} ]] then
+						_targetDir=$targetDir/$_subModule
+					else 
+						_targetDir=$targetDir/`basename $_subModule`
+					fi
+					vcsCheckout $_vcsModule $_subModule $_targetDir '' 1 
+				done
+			else
+				vcsCheckout $_vcsModule "" "" "" 1 
+			fi
+		fi | { \
+			while read _l; do
+				if [[ -z "${_l#+(Checked out revision )+([0-9]*).}" && -z "$_oneLine" ]] then
+					if [[ ${#changeLog[*]} -gt 2 ]] then
+						changeLog[$(($#changeLog+1))]="- $_l from $_vcsModule/$_vcsRev"
+					else
+						changeLog[2]="- $_l from $_vcsModule/$_vcsRev"
+					fi
+					_oneLine='1';
+				fi
+			done
+		}
+	done
+}
+
+function pkgInitEnv {
+  printDBG "invoking ${0}[$stgNum]"
+      
+  case $pkgType in
+    'deb')
+      debInitEnv ;;
+    'rpm')
+      rpmInitEnv ;;
+    *)
+      printERR "[$pkgType] package type is not supported" ;;
+  esac
+}
+
 function svnInitEnv {
   printDBG "invoking ${0}[$stgNum]"
 
@@ -160,18 +281,16 @@ function debInitEnv {
   printDBG "invoking ${0}[$stgNum]"
 
   if [[ -z "$pkgName" ]]; then
-    pkgName=`svnCat "" "$specDir/control" "" "1" | awk -F': ?' '/^Package/ {print $2}'`
+    pkgName=`cat $specDir/control | awk -F': ?' '/^Package/ {print $2}'`
     vcsModules[$vcsModule]=$modBuild
   fi
-  targetDir="$workDir$pkgName-${modBuild:-targetDir}"
-  [[ -d $targetDir ]] && rm -rf $targetDir
 }
 
 function debBuild {
   printDBG "invoking ${0}[$stgNum]"
 
   pushd $targetDir/`basename $vcsModule`
-  execCmd "dpkg-buildpackage"
+  execCmd "dpkg-buildpackage -b -rfakeroot -us -uc"
 }
 
 function debInstallDeps {
@@ -277,8 +396,6 @@ function rpmInitEnv {
     return 0
   fi
   
-  targetDir="$workDir$pkgName-${modBuild:-targetDir}"
-  [[ -d $targetDir ]] && rm -rf $targetDir
 	# magic '/' in specFile definition
 	# if specFile contain a '/' it's assumed to found in relative path of targetDir root
 	if [[ ${specFile##*/} != $specFile ]] then
@@ -351,6 +468,27 @@ function moduleGetAlias {
 	fi
 }
 
+function gitGetRev {
+	local _ver
+	_ver=$1
+
+	[[ -z "$_ver" ]] && _ver="$modBuild"
+	case $vcsRel in
+		'trunk') 
+				print -- "--branch master" ;;
+		'branch')
+				print -- "--branch ${_ver%[.-]+([0-9])}" ;;
+		'tag')
+				print -- "--branch $_ver" ;;
+		'local')
+				print "local" ;;
+		'custom')
+				print "" ;;
+		*)
+				printERR "Unknown vcsRel $vcsRel" ;;
+	esac
+}
+
 function svnGetRev {
 	local _ver
 	_ver=$1
@@ -372,6 +510,16 @@ function svnGetRev {
 	esac
 }
 
+function vcsGetRev {
+	local _ver
+	_ver=$1
+  case $vcsSystem in
+    svn) svnGetRev $_ver;;
+    git) gitGetRev $_ver;;
+    *) printERR "vcsSystem '$vcsSystem'' is not supported"
+  esac
+}
+
 function svnList {
 	local _module _path _svnRev
 	_module=$1
@@ -387,7 +535,7 @@ function svnList {
 	if [[ "$_svnRev" = "local" ]] then
 		execCmd "ls $_module/$_path" 'yes' '1'
 	else
-		execCmd "svn list $_svnRevOpt $svnBase$_module/$_svnRev$_path" 'yes' '1'
+		execCmd "svn list $_svnRevOpt $vcsBase$_module/$_svnRev$_path" 'yes' '1'
 	fi
 }
 
@@ -408,11 +556,13 @@ function svnCat {
 	if [[ "$_svnRev" = 'local' ]] then
 		execCmd "cat $_module/$_path" "$_nonFail" "$_reqOut"
 	else
-		execCmd "svn cat $_svnRevOpt $svnBase$_module/$_svnRev$_path" "$_nonFail" "$_reqOut"
+		execCmd "cat $_path" "$_nonFail" "$_reqOut"
+#		execCmd "svn cat $_svnRevOpt $vcsBase$_module/$_svnRev$_path" "$_nonFail" "$_reqOut"
 	fi
 }
 
-function svnCheckout {
+function vcsCheckout {
+  printDBG "invoking ${0}[$stgNum]" 2
 	local _module _path _dst _nonFail _reqOut _svnRev _svnRevOpt
 	_module=$1
 	_path=$2
@@ -421,7 +571,7 @@ function svnCheckout {
 	_reqOut=$5
  
 	[[ -z "$_module" ]] && _module="$vcsModule"
-	_svnRev=`svnGetRev ${vcsModules[$_module]}`
+	_vcsRev=`vcsGetRev ${vcsModules[$_module]}`
 
   [[ -n "$svnProjectRev" ]] &&	_svnRevOpt="-r $svnProjectRev"
 
@@ -429,12 +579,17 @@ function svnCheckout {
     [[ -z "$distCheckout" ]] &&  _dst="$targetDir/`basename $_module`" || _dst="$targetDir"
   fi 
     
-	_module=`moduleGetAlias $_module $_svnRev`
-	if [[ "$_svnRev" = "local" ]] then
+	_module=`moduleGetAlias $_module $_vcsRev`
+	if [[ "$_vcsRev" = "local" ]] then
 		execCmd "mkdir -p $_dst" "$_nonFail" "$_reqOut"
 		execCmd "cp -r $_module/$_path/* $_dst" "$_nonFail" "$_reqOut"
 	else
-	execCmd "svn checkout $_svnRevOpt $svnBase$_module/$_svnRev$_path $_dst" "$_nonFail" "$_reqOut"
+    case $vcsSystem in
+      svn) execCmd "svn checkout $_svnRevOpt $vcsBase$_module/$_vcsRev$_path $_dst" "$_nonFail" "$_reqOut" ;;
+#      git) execCmd "git clone -c advice.detachedHead=false --single-branch --depth 1 $_vcsRev $vcsBase$_module $_dst" "$_nonFail" "$_reqOut" ;;
+      git) execCmd "git clone --depth 1 $_vcsRev $vcsBase$_module $_dst" "$_nonFail" "$_reqOut" ;;
+      *) printERR "vcsSystem '$vcsSystem' is not supported"
+    esac
 	fi
 }
 
@@ -574,10 +729,10 @@ function svnPrepare {
 					else 
 						_targetDir=$targetDir/`basename $_subModule`
 					fi
-					svnCheckout $_vcsModule $_subModule $_targetDir '' 1 
+					vcsCheckout $_vcsModule $_subModule $_targetDir '' 1 
 				done
 			else
-				svnCheckout $_vcsModule "" "" "" 1 
+				vcsCheckout $_vcsModule "" "" "" 1 
 			fi
 		fi | { \
 			while read _l; do
@@ -621,16 +776,16 @@ function svnCommitSpec {
 			pushd $targetDir/`basename $vcsModule`/$specDir
 		fi
 		execCmd "svn commit -m 'abt $modBuild commit'"
-		execCmd "svn switch $svnBase$vcsModule/${svnDirs[branch]}/${modVer}/$specDir"
+		execCmd "svn switch $vcsBase$vcsModule/${svnDirs[branch]}/${modVer}/$specDir"
 		modifySpec
 		execCmd "svn commit -m 'abt $modBuild commit'"
-		execCmd "svn switch $svnBase$vcsModule/${svnDirs[trunk]}/$specDir" 
+		execCmd "svn switch $vcsBase$vcsModule/${svnDirs[trunk]}/$specDir" 
 		_trunk_ver=`execCmd "rpm -q --qf '%{VERSION}\n' --specfile $specFile | head -1" "" 1`
 		if [[ `python -c "import rpm; print rpm.labelCompare(('','$_trunk_ver',''),('','$modBuild',''))"` -lt 0 ]] then
 			modifySpec
 			execCmd "svn commit -m 'abt $modBuild commit'"
 		fi
-		execCmd "svn switch $svnBase$vcsModule/${svnDirs[tag]}/$modBuild/$specDir"
+		execCmd "svn switch $vcsBase$vcsModule/${svnDirs[tag]}/$modBuild/$specDir"
 		popd
 	fi
 }
@@ -790,7 +945,7 @@ EOF
     for (( _buildCycle=1; _buildCycle <= $((${#rpmMacros}?${#rpmMacros}:1)); _buildCycle++ ))
     do
       printDBG "build cycle: $_buildCycle, rpm macro(s): ${rpmMacros[$_buildCycle]:-not set}"
-      execCmd "rpmbuild -ba $rpmOptMacros  ${rpmMacros[$_buildCycle]} $rpmbuildOpt $specFile 2>&1"
+      execCmd "rpmbuild --nodeps -ba $rpmOptMacros  ${rpmMacros[$_buildCycle]} $rpmbuildOpt $specFile 2>&1"
       for _pkg in `execCmd "rpm -q $rpmOptMacros ${rpmMacros[$_buildCycle]} --qf '%{NAME}-%{VERSION}-%{RELEASE}.%{ARCH}.rpm\n' --specfile $specFile" '' '1'`
       do
         _pkgFile=`rpm -E '%_rpmdir/'``echo $_pkg | awk -F. '{print $(NF-1)}'`"/$_pkg"

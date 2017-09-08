@@ -1,6 +1,7 @@
 
-DUSER_HOME=tmp/Docker 
-mkdir -p $HOME/$DUSER_HOME
+ADD_OPTS=''
+DUSER_HOME=$HOME/tmp/Docker
+mkdir -p $DUSER_HOME
 IMAGE=$1
 shift
 DHOST=`basename $IMAGE`
@@ -12,10 +13,10 @@ echo "### Docker home is $HOME/$DUSER_HOME ###"
 case `uname` in
   Darwin)
     NFSHOMEIP=`VBoxManage list -l hostonlyifs | awk '/IPAddress/ {print $2}' | head -1`
-    docker run --privileged --rm -it -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v /tmp:/tmp -e USER=$USER -e UID=$UID -e UHOME=$HOME/$DUSER_HOME -e CHOSTNAME=$DHOST -e NFSHOMEIP=$NFSHOMEIP $IMAGE $@
+    docker run --privileged --rm -it -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v /tmp:/tmp -e USER=$USER -e UID=$UID -e UHOME=${DUSER_HOME} -e CHOSTNAME=$DHOST -e NFSHOMEIP=$NFSHOMEIP $ADD_OPTS $IMAGE $@
     ;;
   Linux)
-    docker run --privileged --rm -it -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v /tmp:/tmp -e USER=$USER -e UID=$UID -e UHOME=$HOME/$DUSER_HOME -e CHOSTNAME=$DHOST -v $HOME/$DUSER_HOME:$HOME/$DUSER_HOME $IMAGE $@
+    docker run --privileged --rm -it -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v /tmp:/tmp -e USER=$USER -e UID=$UID -e UHOME=${DUSER_HOME} -e CHOSTNAME=$DHOST -v ${DUSER_HOME}:${DUSER_HOME} $ADD_OPTS $IMAGE $@
     ;;
   *)
     echo "System is unknown"

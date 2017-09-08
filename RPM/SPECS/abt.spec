@@ -1,11 +1,11 @@
 Name:       abt
-Version:    3.0.1
+Version:    3.1.0
 Release:    ssv1%{?dist}
 Summary:    abt is advanced building system tool
 License:    BSD
 Group:	    Development/Tools
 BuildArch:  noarch
-Requires:   rpm-build redhat-rpm-config subversion sudo yum-utils tar curl sed ed
+Requires:   rpm-build redhat-rpm-config subversion sudo yum-utils tar curl sed ed git
 Source:	    %name-%version.tar.gz
 BuildRoot:  %{_tmppath}/%{name}-%version-buildroot
 

@@ -8,6 +8,6 @@ Homepage: https://github.com/sergevs/abt
 
 Package: abt
 Architecture: all
-Depends:  ${misc:Depends}, build-essential, devscripts, zsh, subversion
+Depends:  ${misc:Depends}, build-essential, devscripts, zsh, subversion, git
 Description: Advanced Build Tool is a shell scripts that simplify packages builds from svn
   Abt is the flexible shell script provides functionality to build packages from a version control system. Currently subversion is supported but any other can be easily integrated. The tool consist of the main script abt - the user interface and functions file which contains generic functions. 

@@ -3,9 +3,8 @@
 maxStages=100
 pkgType='deb'
 
-stage[1]='svnInitEnv'
-stage[2]='debInitEnv'
-stage[10]='svnPrepare'
+stage[1]='vcsPrepare'
+stage[2]='pkgInitEnv'
 #stage[20]='logFromJira4'
 #stage[40]='debInstallDeps'
 stage[50]='debBuild'
@@ -24,8 +23,11 @@ functionsFile='/etc/abt/abt.functions'
 # default mock config directory
 #mockConfigDir='/etc/abt/mock/'
 
-# default svn root path
-svnBase='https://github.com/'
+# default version control root path
+vcsBase='https://github.com/'
+
+# version control system: svn or git
+vcsSystem=git
 
 # default work dir for all operations
 workDir="$HOME/tmp/"
