@@ -1,4 +1,4 @@
-FROM centos:6
+FROM centos:6.9
 MAINTAINER Serge at abrikus@gmail.com
 
 RUN yum -y --setopt=tsflags=nodocs install https://github.com/sergevs/abt/releases/download/3.1.0/abt-3.1.0-ssv1.el6.noarch.rpm && \
