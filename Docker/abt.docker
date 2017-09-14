@@ -3,7 +3,7 @@
 # Additional options for docker run command
 # As an instance you can mount a repository configuration file
 
-ADD_OPTS=''
+[[ -z "$DADD_OPTS" ]] && DADD_OPTS=''
 
 function printUsage {
   cat <<EOF
@@ -46,4 +46,4 @@ DHOST=`echo $DHOST| sed -e 's/_/./g'`
 echo
 echo "### Docker home is $DUSER_HOME ###"
 
-docker run --privileged --rm -i -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v /tmp:/tmp -e USER=$USER -e UID=$UID -e UHOME=${HOME} -e CHOSTNAME=$DHOST -v ${DUSER_HOME}:${HOME} $ADD_OPTS $IMAGE $@
+docker run --privileged --rm -i -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v /tmp:/tmp -e USER=$USER -e UID=$UID -e UHOME=${HOME} -e CHOSTNAME=$DHOST -v ${DUSER_HOME}:${HOME} $DADD_OPTS $IMAGE $@
