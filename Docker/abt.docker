@@ -1,24 +1,49 @@
+#!/bin/bash
+
+# Additional options for docker run command
+# As an instance you can mount a repository configuration file
 
 ADD_OPTS=''
-DUSER_HOME=$HOME/tmp/Docker
-mkdir -p $DUSER_HOME
+
+function printUsage {
+  cat <<EOF
+
+Usage: $0 <docker image> -v <version> [OPTIONS] <vcs module path>
+
+Supported images are:
+EOF
+
+  docker search sergevs42 | grep -P  '^NAME|abt'
+
+  if [[ $? -ne 0 ]]; then 
+    cat <<EOF
+Please ensure docker is configured properly and the command below run without errors:
+
+docker run --rm -it hello-world
+
+EOF
+  fi
+  exit 1
+}
+
+[[ -z "$1" ]] && printUsage
+
 IMAGE=$1
 shift
+
+[[ -z "$DUSER_HOME" ]] && DUSER_HOME=$HOME/DockerBuild
+
+if [[ $DUSER_HOME != $HOME ]]; then
+  mkdir -p $DUSER_HOME
+  [[ -d  $HOME/.ssh ]] && cp -a $HOME/.ssh $DUSER_HOME
+  [[ -f  $HOME/.rpmmacros ]] && cp -a $HOME/.rpmmacros $DUSER_HOME
+  [[ -f  $HOME/.abtrc ]] && cp -a $HOME/.abtrc $DUSER_HOME
+fi
+
 DHOST=`basename $IMAGE`
 DHOST=`echo $DHOST| sed -e 's/_/./g'`
 
 echo
-echo "### Docker home is $HOME/$DUSER_HOME ###"
+echo "### Docker home is $DUSER_HOME ###"
 
-case `uname` in
-  Darwin)
-    NFSHOMEIP=`VBoxManage list -l hostonlyifs | awk '/IPAddress/ {print $2}' | head -1`
-    docker run --privileged --rm -it -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v /tmp:/tmp -e USER=$USER -e UID=$UID -e UHOME=${DUSER_HOME} -e CHOSTNAME=$DHOST -e NFSHOMEIP=$NFSHOMEIP $ADD_OPTS $IMAGE $@
-    ;;
-  Linux)
-    docker run --privileged --rm -it -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v /tmp:/tmp -e USER=$USER -e UID=$UID -e UHOME=${DUSER_HOME} -e CHOSTNAME=$DHOST -v ${DUSER_HOME}:${DUSER_HOME} $ADD_OPTS $IMAGE $@
-    ;;
-  *)
-    echo "System is unknown"
-    ;;
-esac
+docker run --privileged --rm -i -e SSH_AUTH_SOCK=$SSH_AUTH_SOCK -v /tmp:/tmp -e USER=$USER -e UID=$UID -e UHOME=${HOME} -e CHOSTNAME=$DHOST -v ${DUSER_HOME}:${HOME} $ADD_OPTS $IMAGE $@

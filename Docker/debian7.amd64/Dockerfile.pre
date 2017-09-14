@@ -1,0 +1,17 @@
+FROM debian:7
+MAINTAINER Serge at abrikus@gmail.com
+
+COPY abt_3.1.0_all.deb /root/
+RUN apt-get update && \
+    apt-get install --no-install-recommends wget ca-certificates sudo equivs gawk nfs-common openssh-client -y && \
+    dpkg -i /root/abt_3.1.0_all.deb ; \
+    apt-get install --no-install-recommends -fy && \
+    rm -f abt_3.1.0_all.deb && \
+    apt-get remove mawk awk -y && \
+    apt-get clean && \
+    echo "%sudo  ALL=(ALL)       NOPASSWD: ALL" >> /etc/sudoers
+
+COPY abtrc /etc/abt/
+COPY user.init /usr/bin/
+
+ENTRYPOINT ["/usr/bin/user.init"]

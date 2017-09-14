@@ -6,6 +6,7 @@ RUN yum -y --setopt=tsflags=nodocs install /root/abt-3.1.0-ssv1.el7.noarch.rpm &
     yum -y --setopt=tsflags=nodocs install http://mirror.yandex.ru/epel/7Server/x86_64/e/epel-release-7-10.noarch.rpm && \
     yum -y --setopt=tsflags=nodocs install iproute hostname nfs-utils rpcbind openssh-clients && \
     yum clean all && \
+    rm -f /etc/yum.repos.d/*Sources.repo && \
     echo "%wheel  ALL=(ALL)       NOPASSWD: ALL" >> /etc/sudoers
 
 RUN sed -i -e 's/el7.centos/el7/' /etc/rpm/macros.dist

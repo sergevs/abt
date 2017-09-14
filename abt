@@ -22,11 +22,15 @@ else
 fi
 
 if [[ $? -ne 0 ]] then
-	print "ERR - error while sourcing functions" >&2
+	printf "\nERR - error while sourcing functions\n" >&2
 	exit 1
 fi
 
 function printUsage {
+  _err = $1
+
+  [[ -n "$_err" ]] && printf "\nERR - $_err\n\n" >&2
+
   cat <<EOF
 Usage: abt -v <version> [OPTIONS] <vcs module path>
 
@@ -116,17 +120,17 @@ shift $(($OPTIND - 1))
 vcsModule=$1
 
 # vcs Module verification
-[[ -z "$vcsModule" ]] && [[ -z "$specFile" ]] && printERR "vcs module or specfile[-o] option is not specified, see abt -h"
-[[ -n "$vcsModule" ]] && [[ -n "$specFile" ]] && printERR "vcs module conflicts with specfile[-o] option, see abt -h"
-[[ -n "$specFile" ]] && [[ -n "$modBuild" ]] && printERR "verion[-v] option conflicts with specfile[-o], see abt -h"
+[[ -z "$vcsModule" ]] && [[ -z "$specFile" ]] && printUsage "vcs module or specfile[-o] option is not specified"
+[[ -n "$vcsModule" ]] && [[ -n "$specFile" ]] && printUsage "vcs module conflicts with specfile [-o] option"
+[[ -n "$specFile" ]] && [[ -n "$modBuild" ]] && printUsage "verion [-v] option conflicts with specfile [-o]"
 
 # version verification
-[[ -z "$specFile" ]] && [[ -z "$modBuild" ]] && printERR "-v <product version> is mandatory"
+[[ -z "$specFile" ]] && [[ -z "$modBuild" ]] && printUsage "-v <product version> is mandatory"
 #[[ -n "${modBuild##+([0-9]).+([0-9]).+([0-9]).+([0-9])}" ]] && printERR "Wrong version $modBuild, have to be in x.x.x.x form"
 modVer=${modBuild%[.-]+([0-9])}
 
 # debug level verification
-[[ -n "${isDebug##+([0-9])}" ]] && printERR "debug level have to be a number"
+[[ -n "${isDebug##+([0-9])}" ]] && printUsage "debug level have to be a number"
 
 printDBG "started $0 `date +'%H:%M:%S %d.%m.%Y'`" 1
 startTime=`date +%s`
