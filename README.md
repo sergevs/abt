@@ -29,7 +29,8 @@ The default build work flow provides the following stages:
 While ready to use abt packages are provided at [release page](https://github.com/sergevs/abt/releases/latest) and can be
 installed on a host or VM, the recommended way is to use prepared docker images.
 
-1. Install and configure docker with non root access for the user which will build packages. Verify installation:
+1. Install and configure docker with non-root access for the user which will build packages. Please refer to appropriate for your OS documentation.
+Verify installation:
    ```shell
    docker run --rm -it hello-world
    ```
@@ -43,7 +44,7 @@ installed on a host or VM, the recommended way is to use prepared docker images.
    ```shell
    echo "%packager Your name <your email>" >> ~/.rpmmacros
    ```
-4. Ready to build packages. Verify to build abt itself :
+4. Ready to build packages. Verify to build abt itself:
    ```shell
    ~/bin/abt.docker sergevs42/centos7.x86_64-abt -v 3.1.0 sergevs/abt
    find ~/DockerBuild/repos 
@@ -57,9 +58,9 @@ It's possible to customize build behavior via various ways.
    export DADD_OPTS='-v<path to yum.repo>:/etc/yum.repos.d/additional.repo'
    ```
 2. [~/.abtrc](abtrc) allows to customize various aspects of abt
-3. Customize **abt.docker** script according to your needs
+3. Customize [abt.docker](Docker/abt.docker) script according to your needs
 
-# Options:
+# Options
   
 See also:
 ```shell
@@ -121,7 +122,7 @@ Stage  90 => cleanUp
 ```
 # Known projects ready to build
 
-* [abt](https://github.com/sergevs/abt)
-* [net-snmp-subagent-shell](https://github.com/sergevs/net-snmp-subagent-shell)
-* [newsgate](https://github.com/newsgate/Server), repository customization is required
-* [ClickHouse](https://github.com/yandex/ClickHouse), use debian8.amd64-abt image, since v1.1.54285-testing tag 
+* [sergevs/abt](https://github.com/sergevs/abt)
+* [sergevs/net-snmp-subagent-shell](https://github.com/sergevs/net-snmp-subagent-shell)
+* [newsgate/Server](https://github.com/newsgate/Server), repository customization is required
+* [yandex/ClickHouse](https://github.com/yandex/ClickHouse), build verified for **sergevs42/debian9.amd64-abt** image, **v1.1.54289-stable** version(tag)

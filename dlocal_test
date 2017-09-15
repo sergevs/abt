@@ -1,0 +1,30 @@
+#!/bin/bash
+#
+# the script is for development purposes and used to test abt & docker images build
+# in the order to use it's highly recommended to set
+# export DUSER_HOME=$HOME
+
+# terminate on any error
+set -e
+
+# package version
+AVERSION=3.1.0
+
+# function to perform local build using a ready image
+# the image should be available from a local or remote registry
+function dlocal_test {
+  OS=$1
+  PKG=$2
+  Docker/abt.docker sergevs42/$OS-abt -v ${AVERSION} -b local -A "abts `pwd`" abts
+  cp ~/repos/$PKG Docker/$OS
+  docker build Docker/$OS/ -f Docker/$OS/Dockerfile.pre -t sergevs42/$OS-abt
+}
+
+dlocal_test centos6.x86_64 el6/RPMS.test/abt-${AVERSION}-ssv1.el6.noarch.rpm
+dlocal_test centos7.x86_64 el7/RPMS.test/abt-${AVERSION}-ssv1.el7.noarch.rpm
+
+dlocal_test debian7.amd64 test/abt_${AVERSION}_all.deb
+dlocal_test debian8.amd64 test/abt_${AVERSION}_all.deb
+dlocal_test debian9.amd64 test/abt_${AVERSION}_all.deb
+
+find Docker -type f -and \( -name '*.rpm' -or -name '*.deb' \) -delete
