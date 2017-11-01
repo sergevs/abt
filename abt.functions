@@ -586,8 +586,8 @@ function vcsCheckout {
 	else
     case $vcsSystem in
       svn) execCmd "svn checkout $_svnRevOpt $vcsBase$_module/$_vcsRev$_path $_dst" "$_nonFail" "$_reqOut" ;;
-#      git) execCmd "git clone -c advice.detachedHead=false --single-branch --depth 1 $_vcsRev $vcsBase$_module $_dst" "$_nonFail" "$_reqOut" ;;
-      git) execCmd "git clone -c advice.detachedHead=false --depth 1 $_vcsRev $vcsBase$_module $_dst" "$_nonFail" "$_reqOut" ;;
+      git) execCmd "git clone -c advice.detachedHead=false --single-branch --depth 1 $_vcsRev $vcsBase$_module $_dst" "$_nonFail" "$_reqOut" ;;
+#      git) execCmd "git clone -c advice.detachedHead=false --depth 1 $_vcsRev $vcsBase$_module $_dst" "$_nonFail" "$_reqOut" ;;
       *) printERR "vcsSystem '$vcsSystem' is not supported"
     esac
 	fi
