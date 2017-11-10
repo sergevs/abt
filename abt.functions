@@ -312,6 +312,12 @@ function rpmInstallDeps {
   done
 }
 
+function rpmFetchSources {
+  printDBG "invoking ${0}[$stgNum]"
+
+  execCmd "sudo spectool -g -R $specFile"
+}
+
 function setMockConfigFile {
   printDBG "invoking ${0}" 2
   local _arch
