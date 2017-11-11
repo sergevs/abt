@@ -6,9 +6,10 @@ pkgType='deb'
 stage[1]='vcsPrepare'
 stage[2]='pkgInitEnv'
 #stage[20]='logFromJira4'
-#stage[40]='debInstallDeps'
+stage[40]='debInstallDeps'
 stage[50]='debBuild'
 #stage[60]='svnCommitSpec'
+stage[70]='debRepoCopy'
 stage[90]='cleanUp'
 
 # default functions file
@@ -42,7 +43,7 @@ repoUseRelease='True'
 
 # default binary packages path
 #rpmRepoHome="/home/repos/default/"
-debRepoHome="/home/repos"
+debRepoHome="$HOME/repos"
 #srpmRepoHome="/home/repos/default/"
 
 # default repository

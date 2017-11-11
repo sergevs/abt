@@ -8,7 +8,8 @@
 set -e
 
 # package version
-AVERSION=3.1.0
+# find -type f -not -path '*.git*' -exec sed -i -e 's/3.1.0/3.1.1/g' '{}' ';'
+AVERSION=3.1.1
 
 # function to perform local build using a ready image
 # the image should be available from a local or remote registry
@@ -27,4 +28,4 @@ dlocal_test debian7.amd64 test/abt_${AVERSION}_all.deb
 dlocal_test debian8.amd64 test/abt_${AVERSION}_all.deb
 dlocal_test debian9.amd64 test/abt_${AVERSION}_all.deb
 
-find Docker -type f -and \( -name '*.rpm' -or -name '*.deb' \) -delete
+#find Docker -type f -and \( -name '*.rpm' -or -name '*.deb' \) -delete
