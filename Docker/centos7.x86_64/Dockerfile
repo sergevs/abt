@@ -1,7 +1,7 @@
 FROM centos:7
 MAINTAINER Serge at abrikus@gmail.com
 
-RUN yum -y --setopt=tsflags=nodocs install https://github.com/sergevs/abt/releases/download/3.1.1/abt-3.1.1-ssv1.el7.noarch.rpm && \
+RUN yum -y --setopt=tsflags=nodocs install https://github.com/sergevs/abt/releases/download/3.1.2/abt-3.1.2-ssv1.el7.noarch.rpm && \
     yum -y --setopt=tsflags=nodocs install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm && \
     yum -y --setopt=tsflags=nodocs install iproute hostname nfs-utils rpcbind && \
     yum clean all && \

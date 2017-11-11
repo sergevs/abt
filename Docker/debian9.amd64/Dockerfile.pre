@@ -1,12 +1,12 @@
 FROM debian:9
 MAINTAINER Serge at abrikus@gmail.com
 
-COPY abt_3.1.1_all.deb /root/
+COPY abt_3.1.2_all.deb /root/
 RUN apt-get update && \
     apt-get install --no-install-recommends wget ca-certificates sudo equivs gawk nfs-common openssh-client -y && \
-    dpkg -i /root/abt_3.1.1_all.deb ; \
+    dpkg -i /root/abt_3.1.2_all.deb ; \
     apt-get install --no-install-recommends -fy && \
-    rm -f abt_3.1.1_all.deb && \
+    rm -f abt_3.1.2_all.deb && \
     apt-get remove mawk awk -y && \
     apt-get clean && \
     echo "%sudo  ALL=(ALL)       NOPASSWD: ALL" >> /etc/sudoers

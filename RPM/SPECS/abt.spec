@@ -1,5 +1,5 @@
 Name:       abt
-Version:    3.1.1
+Version:    3.1.2
 Release:    ssv1%{?dist}
 Summary:    abt is advanced building system tool
 License:    BSD

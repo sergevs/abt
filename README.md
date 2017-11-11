@@ -46,7 +46,7 @@ Verify installation:
    ```
 4. Ready to build packages. Verify to build abt itself:
    ```shell
-   ~/bin/abt.docker sergevs42/centos7.x86_64-abt -v 3.1.1 sergevs/abt
+   ~/bin/abt.docker sergevs42/centos7.x86_64-abt -v 3.1.2 sergevs/abt
    find ~/DockerBuild/repos 
    ```
 # Customization 

@@ -8,8 +8,8 @@
 set -e
 
 # package version
-# find -type f -not -path '*.git*' -exec sed -i -e 's/3.1.0/3.1.1/g' '{}' ';'
-AVERSION=3.1.1
+# find -type f -not -path '*.git*' -exec sed -i -e 's/3.1.0/3.1.2/g' '{}' ';'
+AVERSION=3.1.2
 
 # function to perform local build using a ready image
 # the image should be available from a local or remote registry

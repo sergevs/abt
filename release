@@ -3,9 +3,9 @@
 # Dev script for automated releases to github using https://github.com/aktau/github-release tool
 #
 
-AVERSION=3.1.1
+AVERSION=3.1.2
 
-$GOPATH/bin/github-release release -u sergevs -r abt -t $AVERSION -n "Minor release" -d "rpmFetchSources function added"
+$GOPATH/bin/github-release release -u sergevs -r abt -t $AVERSION -n "Minor release" -d "bug fix release"
 
 $GOPATH/bin/github-release upload -u sergevs -r abt -t $AVERSION -n abt-${AVERSION}-ssv1.el6.noarch.rpm -f Docker/centos6.x86_64/abt-${AVERSION}-ssv1.el6.noarch.rpm
 $GOPATH/bin/github-release upload -u sergevs -r abt -t $AVERSION -n abt-${AVERSION}-ssv1.el7.noarch.rpm -f Docker/centos7.x86_64/abt-${AVERSION}-ssv1.el7.noarch.rpm
